@@ -36,7 +36,9 @@ add_executable(ciniva WIN32
     src/app/renderer.cpp
     src/app/timing.cpp
     src/app/video_host.cpp
+    src/screens/components.cpp
     src/screens/login_screen.cpp
+    src/screens/pages.cpp
     src/screens/shell_screen.cpp
     src/ui/images.cpp
     src/ui/text_field.cpp

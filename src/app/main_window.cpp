@@ -61,7 +61,8 @@ bool MainWindow::create(const LaunchOptions& options, int show) {
         sync_screen();
         invalidate();
     };
-    login_ = std::make_unique<LoginScreen>(hwnd_, model_);
+    model_.on_play = [this](const PlaybackRequest& req) { play(req); };
+    login_ =std::make_unique<LoginScreen>(hwnd_, model_);
     shell_ = std::make_unique<ShellScreen>(hwnd_, model_);
 
     ShowWindow(hwnd_, show);
@@ -209,6 +210,7 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case dispatch::WM_APP_INVOKE:
         dispatch::handle_invoke(lp);
+        invalidate();
         return 0;
     case WM_APP_MPV_READY:
         if (player_) player_->on_ready_message(wp);
@@ -263,6 +265,27 @@ void MainWindow::paint() {
     }
 }
 
+void MainWindow::play(const PlaybackRequest& req) {
+    std::string url;
+    if (req.url) url = *req.url;
+    else if (model_.client && req.download_id) url = model_.client->download_stream_url(*req.download_id);
+    else if (model_.client && req.file_id) url = model_.client->stream_url(*req.file_id);
+    if (url.empty()) return;
+    options_.url = url;
+    options_.start = req.start_at.value_or(0);
+    timing::log("play: %s", req.title.c_str());
+    if (!player_) {
+        start_player();
+        return;
+    }
+    if (!player_->ready()) return;
+    layout();
+    video_.show(true);
+    sync_screen();
+    invalidate();
+    player_->load(url, options_.start);
+}
+
 void MainWindow::start_player() {
     mpv::Player::Callbacks cb;
     cb.ready = [this](bool ok, const std::string& error) {
@@ -284,7 +307,7 @@ void MainWindow::start_player() {
     };
     cb.ended = [this](const std::string& reason) {
         video_.show(false);
-        if (reason != "eof") model_.toast("Playback stopped: " + reason, Tone::Error);
+        if (reason.rfind("error", 0) == 0) model_.toast("Playback failed: " + reason.substr(7), Tone::Error);
         if (options_.exit_after_first_frame) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         sync_screen();
         invalidate();
@@ -305,7 +328,9 @@ void MainWindow::on_key(WPARAM key) {
         case 'I': player_->toggle_stats(); break;
         case 'F': toggle_fullscreen(); break;
         case VK_ESCAPE:
+        case VK_BROWSER_BACK:
             if (fullscreen_) toggle_fullscreen();
+            else player_->command({"stop"});
             break;
         }
         return;

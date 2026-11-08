@@ -51,7 +51,7 @@ Id make_id(std::string_view tag, long long n = 0);
 inline Rect rect(float x, float y, float w, float h) { return {x, y, x + w, y + h}; }
 inline float width(const Rect& r) { return r.right - r.left; }
 inline float height(const Rect& r) { return r.bottom - r.top; }
-inline bool contains(const Rect& r, D2D1_POINT_2F p) { return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom; }
+inline bool contains(const Rect& r, D2D1_POINT_2F p) { return r.right > r.left && r.bottom > r.top && p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom; }
 inline Rect inset(const Rect& r, float dx, float dy) { return {r.left + dx, r.top + dy, r.right - dx, r.bottom - dy}; }
 Rect intersect(const Rect& a, const Rect& b);
 Color with_alpha(Color c, float a);

@@ -32,6 +32,7 @@ private:
     void layout();
     void sync_screen();
     void start_player();
+    void play(const PlaybackRequest& req);
     void on_key(WPARAM key);
     void toggle_fullscreen();
     void invalidate();

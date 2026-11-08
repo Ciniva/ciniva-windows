@@ -20,6 +20,8 @@ struct Settings {
     int seek_medium = 30;
     int seek_long = 60;
     bool auto_update = true;
+    std::string sort_movies = "title";
+    std::string sort_shows = "title";
 
     static Settings& get();
     static std::wstring data_dir();

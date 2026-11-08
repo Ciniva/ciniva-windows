@@ -13,7 +13,14 @@ static std::string_view trim(std::string_view s) {
 std::optional<std::string> normalize_server_url(std::string_view text) {
     std::string s(trim(text));
     if (s.empty()) return std::nullopt;
-    if (s.find("://") == std::string::npos) s = "http://" + s;
+    if (s.find("://") == std::string::npos) {
+        // A bare host is assumed to sit behind a TLS proxy; host:port is assumed to be the server itself.
+        auto authority = std::string_view(s).substr(0, s.find_first_of("/?#"));
+        bool has_port = !authority.empty() && authority.front() == '['
+                            ? authority.find("]:") != std::string_view::npos
+                            : authority.find(':') != std::string_view::npos;
+        s = (has_port ? "http://" : "https://") + s;
+    }
     while (!s.empty() && s.back() == '/') s.pop_back();
 
     auto sep = s.find("://");

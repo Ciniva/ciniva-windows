@@ -33,10 +33,38 @@ void AppModel::bootstrap() {
         changed();
         return;
     }
-    Client c(*base, *token);
     std::weak_ptr<bool> alive = alive_;
-    dispatch::async([c] { return c.me(); }, [this, alive, c, base = *base](Result<std::optional<User>> r) {
+    struct Probe {
+        Client client;
+        Result<std::optional<User>> me;
+    };
+    dispatch::async(
+        [base = *base, token = *token]() -> Probe {
+            // Older sign-ins stored http:// for hosts that redirect to TLS; move them to https so the token never
+            // travels in the clear.
+            if (base.rfind("http://", 0) == 0 && base.find(':', 7) == std::string::npos) {
+                std::string secure = "https://" + base.substr(7);
+                if (Client::setup_state(secure).ok()) {
+                    Client c(secure, token);
+                    return {c, c.me()};
+                }
+            }
+            Client c(base, token);
+            return {c, c.me()};
+        },
+        [this, alive, old_base = *base, username = s.username](Probe p) {
         if (alive.expired()) return;
+        const Client& c = p.client;
+        auto& r = p.me;
+        std::string base = c.base_url();
+        if (base != old_base && r.ok() && r.value->has_value()) {
+            credentials::remove(old_base);
+            credentials::save(base, username, c.token());
+            auto& settings = Settings::get();
+            settings.server = base;
+            settings.save();
+            timing::log("moved session from %s to %s", old_base.c_str(), base.c_str());
+        }
         if (r.ok() && r.value->has_value()) {
             become_ready(c, **r.value);
         } else if ((r.ok() && !r.value->has_value()) || r.error.unauthorized()) {
@@ -174,6 +202,21 @@ void AppModel::play(const PlaybackRequest& request) {
 void AppModel::library_changed() {
     ++library_version;
     changed();
+}
+
+void AppModel::set_watched(std::vector<int> file_ids, bool watched) {
+    call(
+        [file_ids, watched](const Client& c) {
+            for (int id : file_ids) {
+                auto r = c.set_watched(id, watched);
+                if (!r.ok()) return r;
+            }
+            return Result<bool>{true, {}};
+        },
+        [this](Result<bool> r) {
+            if (!r.ok() && !r.error.unauthorized()) toast(r.error.message, Tone::Error);
+            library_changed();
+        });
 }
 
 void AppModel::load_plugins() {

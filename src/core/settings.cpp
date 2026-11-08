@@ -69,6 +69,8 @@ std::string Settings::to_json() const {
         {"seek_medium", seek_medium},
         {"seek_long", seek_long},
         {"auto_update", auto_update},
+        {"sort_movies", sort_movies},
+        {"sort_shows", sort_shows},
     };
     return j.dump(2);
 }
@@ -97,6 +99,8 @@ void Settings::from_json(const std::string& text) {
     read("seek_medium", seek_medium);
     read("seek_long", seek_long);
     read("auto_update", auto_update);
+    read("sort_movies", sort_movies);
+    read("sort_shows", sort_shows);
 }
 
 }

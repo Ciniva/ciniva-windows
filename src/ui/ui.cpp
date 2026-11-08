@@ -213,7 +213,7 @@ void Ui::image(const std::optional<std::string>& url, const Rect& r, float radiu
     ID2D1Bitmap* bmp = nullptr;
     if (url) bmp = images_.get(ctx_, renderer_.generation(), *url, decode_width, now_, &alpha);
     if (alpha < 1) {
-        if (alpha > 0) request_frame();
+        if (bmp) request_frame();
         fill_round(r, radius, with_alpha(placeholder, opacity));
     }
     if (!bmp) return;
@@ -248,10 +248,7 @@ void Ui::pop_clip() {
 ButtonState Ui::region(Id id, const Rect& r, std::function<void()> on_click, bool focusable) {
     Rect visible = intersect(r, clip());
     ScrollArea* area = area_stack_.empty() ? nullptr : area_stack_.back();
-    if (width(visible) > 0 && height(visible) > 0)
-        regions_.push_back({id, visible, r, std::move(on_click), focusable, area, nullptr, nullptr});
-    else if (focus_ == id)
-        regions_.push_back({id, visible, r, std::move(on_click), focusable, area, nullptr, nullptr});
+    regions_.push_back({id, visible, r, std::move(on_click), focusable, area, nullptr, nullptr});
     ButtonState st;
     st.hover = hover_ == id && mouse_inside_ && contains(visible, mouse_);
     st.pressed = pressed_ == id && st.hover;

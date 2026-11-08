@@ -63,6 +63,7 @@ public:
     void rescan();
     void play(const PlaybackRequest& request);
     void library_changed();
+    void set_watched(std::vector<int> file_ids, bool watched);
 
     // Runs a client call on the thread pool; a 401 sends the user back to sign-in before done sees the error.
     template <class Work, class Done>
