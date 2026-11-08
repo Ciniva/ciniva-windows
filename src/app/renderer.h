@@ -25,6 +25,7 @@ public:
     ID2D1Factory1* factory() const { return factory_.Get(); }
     float scale() const { return static_cast<float>(dpi_) / 96.0f; }
     D2D1_SIZE_F size_dip() const;
+    UINT generation() const { return generation_; }
 
 private:
     bool create_device();
@@ -33,6 +34,7 @@ private:
 
     HWND hwnd_ = nullptr;
     UINT dpi_ = 96;
+    UINT generation_ = 0;
     ComPtr<ID2D1Factory1> factory_;
     ComPtr<IDWriteFactory> dwrite_;
     ComPtr<ID3D11Device> d3d_;

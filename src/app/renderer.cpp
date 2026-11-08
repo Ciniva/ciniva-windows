@@ -29,6 +29,7 @@ bool Renderer::create_device() {
     d3d_.As(&dxgi_device);
     if (FAILED(factory_->CreateDevice(dxgi_device.Get(), &device_))) return false;
     if (FAILED(device_->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &context_))) return false;
+    ++generation_;
 
     ComPtr<IDXGIAdapter> adapter;
     dxgi_device->GetAdapter(&adapter);

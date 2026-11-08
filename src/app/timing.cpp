@@ -52,6 +52,17 @@ static void write_line(const char* text) {
     }
 }
 
+double now_seconds() {
+    static LARGE_INTEGER freq = [] {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        return f;
+    }();
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return static_cast<double>(t.QuadPart) / static_cast<double>(freq.QuadPart);
+}
+
 void mark(const char* what) { write_line(what); }
 
 void log(const char* fmt, ...) {

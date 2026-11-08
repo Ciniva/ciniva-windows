@@ -1,8 +1,12 @@
 #pragma once
 
+#include "app/app_model.h"
 #include "app/renderer.h"
 #include "app/video_host.h"
 #include "mpv/player.h"
+#include "screens/screen.h"
+#include "ui/images.h"
+#include "ui/ui.h"
 
 #include <memory>
 #include <string>
@@ -26,21 +30,28 @@ private:
 
     void paint();
     void layout();
+    void sync_screen();
     void start_player();
     void on_key(WPARAM key);
     void toggle_fullscreen();
-    void set_status(std::wstring text);
+    void invalidate();
+    D2D1_POINT_2F to_dip(LPARAM lp) const;
 
     HWND hwnd_ = nullptr;
     LaunchOptions options_;
     Renderer renderer_;
     VideoHost video_;
+    AppModel model_;
+    std::unique_ptr<ui::ImageCache> images_;
+    std::unique_ptr<ui::Ui> ui_;
+    std::unique_ptr<Screen> login_;
+    std::unique_ptr<Screen> shell_;
+    Screen* current_ = nullptr;
     std::unique_ptr<mpv::Player> player_;
-    ComPtr<IDWriteTextFormat> title_format_;
-    ComPtr<IDWriteTextFormat> body_format_;
-    std::wstring status_;
     bool first_paint_done_ = false;
     bool fullscreen_ = false;
+    bool tracking_mouse_ = false;
+    bool toast_timer_ = false;
     WINDOWPLACEMENT saved_placement_ = {sizeof(WINDOWPLACEMENT)};
 };
 
