@@ -1,0 +1,4 @@
+#pragma once
+
+#define CINIVA_VERSION "@CINIVA_VERSION@"
+#define CINIVA_VERSION_W L"@CINIVA_VERSION@"
