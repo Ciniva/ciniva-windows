@@ -154,6 +154,43 @@ Result<json> Client::plugins() const {
     return r;
 }
 
+static Query to_query(const json& params) {
+    Query q;
+    if (!params.is_object()) return q;
+    for (auto& [k, v] : params.items())
+        if (!v.is_null() && !v.is_object() && !v.is_array()) q.push_back({k, ciniva::plugins::to_text(v)});
+    return q;
+}
+
+static std::string strip_slashes(std::string p) {
+    while (!p.empty() && p.front() == '/') p.erase(p.begin());
+    return p;
+}
+
+Result<json> Client::plugin_page(const std::string& plugin, const std::string& page, const json& params) const {
+    return send("GET", "/plugins/" + plugin + "/ui/pages/" + page, to_query(params));
+}
+
+Result<json> Client::plugin_call(const std::string& plugin, const ciniva::plugins::Call& call, const json* body) const {
+    const json& payload = body ? *body : call.body;
+    std::string path = "/plugins/" + plugin + "/ui/" + strip_slashes(call.path);
+    if (call.method == "GET") return send("GET", path, to_query(payload));
+    json b = payload.is_object() ? payload : json::object();
+    return send(call.method.c_str(), path, {}, &b);
+}
+
+Result<json> Client::plugin_action(const std::string& plugin, const std::string& action, const json& context) const {
+    json b = {{"context", context}};
+    return send("POST", "/plugins/" + plugin + "/ui/actions/" + action, {}, &b);
+}
+
+Result<json> Client::plugin_settings(const std::string& plugin) const { return send("GET", "/plugins/" + plugin + "/settings"); }
+
+Result<json> Client::save_plugin_settings(const std::string& plugin, const json& values) const {
+    json b = {{"values", values}};
+    return send("PUT", "/plugins/" + plugin + "/settings", {}, &b);
+}
+
 HttpRequest Client::events_request() const {
     HttpRequest req;
     req.url = api_url("/events");

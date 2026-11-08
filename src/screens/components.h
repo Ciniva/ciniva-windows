@@ -17,6 +17,7 @@ struct Nav {
     AppModel& model;
     std::function<void(std::unique_ptr<Page>)> push;
     std::function<void()> back;
+    HWND hwnd = nullptr;
 };
 
 class Page {

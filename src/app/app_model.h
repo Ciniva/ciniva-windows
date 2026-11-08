@@ -48,6 +48,7 @@ public:
     int library_version = 0;
     bool scanning = false;
     nlohmann::json plugins = nlohmann::json::array();
+    std::vector<ciniva::plugins::Info> plugin_infos;
     std::vector<Toast> toasts;
 
     std::function<void()> on_changed;

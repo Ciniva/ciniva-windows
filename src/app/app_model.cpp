@@ -167,6 +167,7 @@ void AppModel::clear_session() {
     client.reset();
     user.reset();
     plugins = json::array();
+    plugin_infos.clear();
     scanning = false;
     phase = Phase::SignedOut;
 }
@@ -222,6 +223,7 @@ void AppModel::set_watched(std::vector<int> file_ids, bool watched) {
 void AppModel::load_plugins() {
     call([](const Client& c) { return c.plugins(); }, [this](Result<json> r) {
         plugins = r.ok() && r.value->is_array() ? *r.value : json::array();
+        plugin_infos = ciniva::plugins::parse_infos(plugins);
         changed();
     });
 }

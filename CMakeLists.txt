@@ -16,6 +16,7 @@ add_library(ciniva_core STATIC
     src/core/credentials.cpp
     src/core/http.cpp
     src/core/models.cpp
+    src/core/plugins.cpp
     src/core/settings.cpp
     src/core/sse.cpp
     src/core/text.cpp
@@ -42,6 +43,7 @@ add_executable(ciniva WIN32
     src/screens/components.cpp
     src/screens/login_screen.cpp
     src/screens/pages.cpp
+    src/screens/plugin_page.cpp
     src/screens/settings_page.cpp
     src/screens/shell_screen.cpp
     src/ui/images.cpp

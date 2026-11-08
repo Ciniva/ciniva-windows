@@ -3,6 +3,7 @@
 #include "app/dispatch.h"
 #include "core/text.h"
 #include "screens/pages.h"
+#include "screens/plugin_page.h"
 #include "ui/widgets.h"
 
 #include <chrono>
@@ -30,7 +31,7 @@ ShellScreen::ShellScreen(HWND hwnd, AppModel& model) : hwnd_(hwnd), model_(model
 }
 
 Nav ShellScreen::nav() {
-    return Nav{model_, [this](std::unique_ptr<Page> p) { push(std::move(p)); }, [this] { back(); }};
+    return Nav{model_, [this](std::unique_ptr<Page> p) { push(std::move(p)); }, [this] { back(); }, hwnd_};
 }
 
 void ShellScreen::on_show() {
@@ -54,12 +55,19 @@ void ShellScreen::select(Section s) {
     case Section::Movies: stack_.push_back(make_library_page(nav(), LibraryKind::Movies)); break;
     case Section::Shows: stack_.push_back(make_library_page(nav(), LibraryKind::Shows)); break;
     case Section::Settings: stack_.push_back(make_settings_page(nav(), hwnd_)); break;
+    case Section::Plugin: break;
     }
     if (!query_.empty()) {
         query_.clear();
         search_page_.reset();
         search_.set_text(L"");
     }
+}
+
+void ShellScreen::select_plugin(const std::string& plugin, const std::string& page) {
+    select(Section::Plugin);
+    plugin_page_key_ = plugin + "/" + page;
+    stack_.push_back(make_plugin_page(nav(), plugin, plugins::Nav{page, nlohmann::json::object()}));
 }
 
 void ShellScreen::push(std::unique_ptr<Page> page) {
@@ -148,6 +156,25 @@ void ShellScreen::paint_sidebar(Ui& ui, const Rect& r) {
     y += 24;
     item("Movies", icon::movie, !searching && section_ == Section::Movies, make_id("nav.movies"), [this] { select(Section::Movies); });
     item("Shows", icon::tv, !searching && section_ == Section::Shows, make_id("nav.shows"), [this] { select(Section::Shows); });
+
+    bool header = false;
+    for (auto& p : model_.plugin_infos) {
+        if (!p.online) continue;
+        for (auto& pg : p.pages) {
+            if (!pg.nav) continue;
+            if (!header) {
+                y += 10;
+                ui.text("PLUGINS", rect(x + 10, y, w, 18), {Font::Caption, theme::tertiary});
+                y += 24;
+                header = true;
+            }
+            std::string key = p.id + "/" + pg.id;
+            bool on = !searching && section_ == Section::Plugin && plugin_page_key_ == key;
+            std::string plugin = p.id, page = pg.id;
+            item(pg.title.c_str(), plugin_glyph(pg.icon.empty() ? p.icon : pg.icon), on, make_id("nav.plugin." + key),
+                 [this, plugin, page] { select_plugin(plugin, page); });
+        }
+    }
 
     float by = r.bottom - 70;
     if (model_.update_installing) {

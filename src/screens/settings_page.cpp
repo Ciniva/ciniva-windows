@@ -2,6 +2,7 @@
 
 #include "core/settings.h"
 #include "core/text.h"
+#include "screens/plugin_page.h"
 #include "ui/text_field.h"
 #include "ui/widgets.h"
 #include "version.h"
@@ -202,6 +203,19 @@ protected:
                      widgets::button(ui, make_id("set.plugins"), rect(x - w, cy - 17, w, 34), "Reload", widgets::Style::Secondary,
                                      [this] { model().load_plugins(); model().toast("Plugins reloaded"); });
                  });
+        bool admin = model().user && model().user->admin;
+        for (auto& p : model().plugin_infos) {
+            std::string detail = p.description.empty() ? "" : p.description;
+            if (!p.online) detail = "Offline. " + detail;
+            std::string label = p.name + (p.version.empty() ? "" : " " + p.version);
+            y += row(ui, r, y, label, detail, 34, [&](float x, float cy) {
+                if (!admin || !p.has_settings) return;
+                float w = widgets::button_width(ui, "Settings", true);
+                std::string id = p.id, name = p.name;
+                widgets::button(ui, make_id("set.plugin." + id), rect(x - w, cy - 17, w, 34), "Settings", widgets::Style::Secondary,
+                                [this, id, name] { nav_.push(make_plugin_settings_page(nav_, id, name)); }, true, icon::settings);
+            });
+        }
         return y + 40;
     }
 

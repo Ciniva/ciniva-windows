@@ -4,6 +4,7 @@
 #include "app/timing.h"
 #include "core/settings.h"
 #include "core/text.h"
+#include "screens/plugin_page.h"
 #include "ui/widgets.h"
 
 #include <algorithm>
@@ -14,6 +15,7 @@
 namespace ciniva {
 
 using namespace ui;
+using nlohmann::json;
 
 namespace {
 
@@ -448,6 +450,9 @@ protected:
             for (auto& mf : movie_->files) ids.push_back(mf.id);
             model().set_watched(ids, !watched);
         }, true, watched ? icon::eye : icon::check);
+        json context = {{"kind", "movie"}, {"id", movie_->id}, {"tmdb_id", movie_->tmdb_id ? json(*movie_->tmdb_id) : json()},
+                        {"title", movie_->title}, {"year", movie_->year ? json(*movie_->year) : json()}};
+        plugin_action_buttons(ui, nav_, cx + w3 + 10, y, "movie", context);
         return 40;
     }
 
@@ -623,6 +628,27 @@ protected:
                     for (auto& f : e.files) ids.push_back(f.id);
                 model().set_watched(ids, unwatched);
             }, true, unwatched ? icon::check : icon::eye);
+            cx += w + 10;
+
+            const auto& s = *show_;
+            json base = {{"id", s.id}, {"tmdb_id", s.tmdb_id ? json(*s.tmdb_id) : json()}, {"title", s.title},
+                         {"year", s.year ? json(*s.year) : json()}};
+            json show_ctx = base;
+            show_ctx["kind"] = "show";
+            show_ctx["seasons"] = json::array();
+            for (auto& se : s.seasons)
+                show_ctx["seasons"].push_back({{"season", se.season_number}, {"available", se.available},
+                                               {"episodes", se.episode_count ? json(*se.episode_count) : json()}});
+            cx = plugin_action_buttons(ui, nav_, cx, y, "show", show_ctx);
+            json season_ctx = base;
+            season_ctx["kind"] = "season";
+            season_ctx["season"] = c->season_number;
+            season_ctx["missing"] = json::array();
+            for (auto& e : episodes_)
+                if (e.files.empty())
+                    season_ctx["missing"].push_back({{"season", e.season_number}, {"episode", e.episode_number},
+                                                     {"title", e.title ? json(*e.title) : json()}});
+            plugin_action_buttons(ui, nav_, cx, y, "season", season_ctx);
         }
         return 40;
     }

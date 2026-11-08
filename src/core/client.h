@@ -2,6 +2,7 @@
 
 #include "core/http.h"
 #include "core/models.h"
+#include "core/plugins.h"
 
 #include <optional>
 #include <string>
@@ -89,6 +90,11 @@ public:
     Result<bool> scan() const;
     Result<bool> set_watched(int file_id, bool watched) const;
     Result<json> plugins() const;
+    Result<json> plugin_page(const std::string& plugin, const std::string& page, const json& params) const;
+    Result<json> plugin_call(const std::string& plugin, const ciniva::plugins::Call& call, const json* body = nullptr) const;
+    Result<json> plugin_action(const std::string& plugin, const std::string& action, const json& context) const;
+    Result<json> plugin_settings(const std::string& plugin) const;
+    Result<json> save_plugin_settings(const std::string& plugin, const json& values) const;
 
     HttpRequest events_request() const;
 
