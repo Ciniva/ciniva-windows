@@ -14,10 +14,10 @@ That copies Ciniva to `%LOCALAPPDATA%\Programs\Ciniva`, adds a Start menu shortc
 
 ## Build
 
-Requires Visual Studio 2022 (Desktop development with C++) and the Windows 10/11 SDK. CMake downloads pinned, SHA-256 checked dependencies (libmpv from shinchiro/mpv-winbuild-cmake, nlohmann/json, Monocypher) into `build/_deps`.
+Requires Visual Studio 2022 or newer (Desktop development with C++) and the Windows 10/11 SDK. CMake downloads pinned, SHA-256 checked dependencies (libmpv from shinchiro/mpv-winbuild-cmake, nlohmann/json, Monocypher) into `build/_deps`.
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake -S . -B build -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release
 ```
