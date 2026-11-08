@@ -9,37 +9,37 @@
 namespace ciniva::ui {
 
 namespace icon {
-constexpr const wchar_t* play = L"";
-constexpr const wchar_t* pause = L"";
-constexpr const wchar_t* back = L"";
-constexpr const wchar_t* search = L"";
-constexpr const wchar_t* home = L"";
-constexpr const wchar_t* movie = L"";
-constexpr const wchar_t* tv = L"";
-constexpr const wchar_t* settings = L"";
-constexpr const wchar_t* refresh = L"";
-constexpr const wchar_t* close = L"";
-constexpr const wchar_t* volume = L"";
-constexpr const wchar_t* mute = L"";
-constexpr const wchar_t* fullscreen = L"";
-constexpr const wchar_t* exit_fullscreen = L"";
-constexpr const wchar_t* subtitles = L"";
-constexpr const wchar_t* audio = L"";
-constexpr const wchar_t* next = L"";
-constexpr const wchar_t* previous = L"";
-constexpr const wchar_t* download = L"";
-constexpr const wchar_t* chevron_down = L"";
-constexpr const wchar_t* chevron_right = L"";
-constexpr const wchar_t* chevron_left = L"";
-constexpr const wchar_t* more = L"";
-constexpr const wchar_t* check = L"";
-constexpr const wchar_t* plugin = L"";
-constexpr const wchar_t* sort = L"";
-constexpr const wchar_t* person = L"";
-constexpr const wchar_t* list = L"";
-constexpr const wchar_t* skip_forward = L"";
-constexpr const wchar_t* skip_back = L"";
-constexpr const wchar_t* eye = L"";
+constexpr const wchar_t* play = L"\uE768";
+constexpr const wchar_t* pause = L"\uE769";
+constexpr const wchar_t* back = L"\uE72B";
+constexpr const wchar_t* search = L"\uE721";
+constexpr const wchar_t* home = L"\uE80F";
+constexpr const wchar_t* movie = L"\uE8B2";
+constexpr const wchar_t* tv = L"\uE7F4";
+constexpr const wchar_t* settings = L"\uE713";
+constexpr const wchar_t* refresh = L"\uE72C";
+constexpr const wchar_t* close = L"\uE711";
+constexpr const wchar_t* volume = L"\uE767";
+constexpr const wchar_t* mute = L"\uE74F";
+constexpr const wchar_t* fullscreen = L"\uE740";
+constexpr const wchar_t* exit_fullscreen = L"\uE73F";
+constexpr const wchar_t* subtitles = L"\uE7F0";
+constexpr const wchar_t* audio = L"\uE8D6";
+constexpr const wchar_t* next = L"\uE893";
+constexpr const wchar_t* previous = L"\uE892";
+constexpr const wchar_t* download = L"\uE896";
+constexpr const wchar_t* chevron_down = L"\uE70D";
+constexpr const wchar_t* chevron_right = L"\uE76C";
+constexpr const wchar_t* chevron_left = L"\uE76B";
+constexpr const wchar_t* more = L"\uE712";
+constexpr const wchar_t* check = L"\uE73E";
+constexpr const wchar_t* plugin = L"\uEA86";
+constexpr const wchar_t* sort = L"\uE8CB";
+constexpr const wchar_t* person = L"\uE77B";
+constexpr const wchar_t* list = L"\uE8FD";
+constexpr const wchar_t* skip_forward = L"\uEB9D";
+constexpr const wchar_t* skip_back = L"\uEB9E";
+constexpr const wchar_t* eye = L"\uE7B3";
 }
 
 namespace widgets {

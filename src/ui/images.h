@@ -17,7 +17,7 @@ class ImageCache {
 public:
     explicit ImageCache(std::function<void()> on_loaded) : on_loaded_(std::move(on_loaded)) {}
 
-    // Returns the bitmap when decoded (alpha ramps 0→1 over the fade-in) or nullptr while it loads.
+    // Returns the bitmap when decoded (alpha ramps 0 to 1 over the fade-in) or nullptr while it loads.
     ID2D1Bitmap* get(ID2D1DeviceContext* ctx, unsigned generation, const std::string& url, int decode_width, double now,
                      float* alpha);
     void clear_memory();

@@ -647,7 +647,7 @@ void PlayerScreen::paint_controls(Ui& ui, const Rect& b) {
         return r;
     };
     rbutton("p.full", host_.is_fullscreen() ? icon::exit_fullscreen : icon::fullscreen, [this] { host_.toggle_fullscreen(); });
-    rbutton("p.info", L"", [this] { show_info_ = !show_info_; }, show_info_);
+    rbutton("p.info", L"\uE946", [this] { show_info_ = !show_info_; }, show_info_);
     bool has_subs = std::any_of(tracks_.begin(), tracks_.end(), [](const mpv::Track& t) { return t.type == "sub"; });
     Rect subs = rbutton("p.subs", icon::subtitles, [this, has_subs] {
         if (has_subs) menu_ = menu_ == Menu::Subtitles ? Menu::None : Menu::Subtitles;

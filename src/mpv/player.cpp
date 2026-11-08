@@ -273,6 +273,15 @@ void Player::set_volume(double volume) {
 void Player::select_audio(const std::string& id) { set("aid", id); }
 void Player::select_subtitle(const std::string& id) { set("sid", id.empty() ? "no" : id); }
 
+void Player::apply_settings() {
+    const auto& s = Settings::get();
+    set("target-colorspace-hint", s.hdr ? "yes" : "no");
+    set("target-peak", s.peak_nits > 0 ? std::to_string(s.peak_nits) : "auto");
+    set("alang", s.audio_lang);
+    set("slang", s.sub_lang);
+    set("audio-spdif", s.passthrough ? "ac3,eac3,dts,dts-hd,truehd" : "");
+}
+
 void Player::toggle_stats() { command({"script-binding", "stats/display-stats-toggle"}); }
 
 std::optional<std::string> Player::get_string(const std::string& name) const {

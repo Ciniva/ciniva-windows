@@ -132,6 +132,7 @@ void MainWindow::create_player() {
     cb.changed = [this] { screen_->on_changed(); };
     cb.tracks_changed = [this] { screen_->on_tracks_changed(); };
     player_->set_callbacks(std::move(cb));
+    model_.on_settings_changed = [this] { player_->apply_settings(); };
     player_->start(video_.hwnd(), Settings::get().volume);
 
     if (!options_.url.empty()) {

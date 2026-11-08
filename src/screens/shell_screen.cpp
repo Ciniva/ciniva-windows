@@ -37,15 +37,23 @@ void ShellScreen::on_show() {
     if (stack_.empty()) select(Section::Home);
 }
 
-void ShellScreen::on_hide() { search_.hide(); }
+void ShellScreen::on_hide() {
+    search_.hide();
+    if (last_page_) last_page_->on_hide();
+    last_page_ = nullptr;
+    account_menu_ = false;
+}
 
 void ShellScreen::select(Section s) {
     section_ = s;
+    account_menu_ = false;
+    last_page_ = nullptr;
     stack_.clear();
     switch (s) {
     case Section::Home: stack_.push_back(make_home_page(nav())); break;
     case Section::Movies: stack_.push_back(make_library_page(nav(), LibraryKind::Movies)); break;
     case Section::Shows: stack_.push_back(make_library_page(nav(), LibraryKind::Shows)); break;
+    case Section::Settings: stack_.push_back(make_settings_page(nav(), hwnd_)); break;
     }
     if (!query_.empty()) {
         query_.clear();
@@ -92,7 +100,15 @@ void ShellScreen::search_changed() {
 }
 
 bool ShellScreen::on_key(WPARAM key) {
+    if (account_menu_ && key == VK_ESCAPE) {
+        account_menu_ = false;
+        return true;
+    }
     if (key == VK_ESCAPE || key == VK_BACK || key == VK_BROWSER_BACK) return back();
+    if (key == VK_OEM_COMMA && GetKeyState(VK_CONTROL) < 0) {
+        select(Section::Settings);
+        return true;
+    }
     if (key == 'F' && GetKeyState(VK_CONTROL) < 0) {
         search_.focus();
         search_.select_all();
@@ -133,21 +149,57 @@ void ShellScreen::paint_sidebar(Ui& ui, const Rect& r) {
     item("Movies", icon::movie, !searching && section_ == Section::Movies, make_id("nav.movies"), [this] { select(Section::Movies); });
     item("Shows", icon::tv, !searching && section_ == Section::Shows, make_id("nav.shows"), [this] { select(Section::Shows); });
 
-    float by = r.bottom - 112;
+    float by = r.bottom - 70;
     ui.line({r.left + 14, by}, {r.right - 14, by}, theme::stroke);
     by += 12;
     std::string host = model_.client ? model_.client->base_url() : "";
     if (auto p = host.find("://"); p != std::string::npos) host = host.substr(p + 3);
-    ui.circle({x + 18, by + 20}, 16, theme::surface_hover);
-    widgets::glyph(ui, icon::person, rect(x + 2, by + 4, 32, 32), theme::secondary, Font::IconSmall);
-    ui.text(model_.user ? model_.user->username : "", rect(x + 44, by + 2, w - 44, 20), {Font::BodyBold});
-    ui.text(host, rect(x + 44, by + 21, w - 44, 18), {Font::Caption, theme::secondary});
-    by += 48;
-    float bw = (w - 8) / 2;
-    widgets::button(ui, make_id("nav.scan"), rect(x, by, bw, 32), model_.scanning ? "Scanning" : "Rescan",
-                    widgets::Style::Secondary, [this] { model_.rescan(); }, !model_.scanning, icon::refresh);
-    widgets::button(ui, make_id("nav.signout"), rect(x + bw + 8, by, bw, 32), "Sign out", widgets::Style::Ghost,
-                    [this] { model_.sign_out(); });
+    account_rect_ = rect(x - 4, by, w - 36, 46);
+    auto st = ui.region(make_id("nav.account"), account_rect_, [this] { account_menu_ = !account_menu_; });
+    if (st.hover || account_menu_ || section_ == Section::Settings) ui.fill_round(account_rect_, 8, {1, 1, 1, 0.06f});
+    if (st.focused) ui.focus_ring(account_rect_, 8);
+    ui.circle({x + 18, by + 23}, 16, theme::surface_hover);
+    widgets::glyph(ui, icon::person, rect(x + 2, by + 7, 32, 32), theme::secondary, Font::IconSmall);
+    ui.text(model_.user ? model_.user->username : "", rect(x + 44, by + 5, w - 88, 20), {Font::BodyBold});
+    ui.text(host, rect(x + 44, by + 24, w - 88, 18), {Font::Caption, theme::secondary});
+    Rect scan = rect(r.right - 46, by + 7, 32, 32);
+    if (model_.scanning) widgets::spinner(ui, {scan.left + 16, scan.top + 16}, 8);
+    else widgets::icon_button(ui, make_id("nav.scan"), scan, icon::refresh, [this] { model_.rescan(); }, false, Font::IconSmall);
+}
+
+void ShellScreen::paint_account_menu(Ui& ui, const Rect& b) {
+    ui.region(make_id("nav.menu.dismiss"), b, [this] { account_menu_ = false; }, false);
+    struct Item {
+        const char* label;
+        const wchar_t* glyph;
+        std::function<void()> fn;
+        bool enabled;
+    };
+    std::vector<Item> items = {
+        {"Settings", icon::settings, [this] { select(Section::Settings); }, true},
+        {model_.scanning ? "Scanning library\xE2\x80\xA6" : "Rescan library", icon::refresh, [this] { model_.rescan(); }, !model_.scanning},
+        {"Reload plugins", icon::plugin, [this] { model_.load_plugins(); model_.toast("Plugins reloaded"); }, true},
+        {"Sign out", icon::close, [this] { model_.sign_out(); }, true},
+    };
+    float w = 230, rh = 38, h = items.size() * rh + 12;
+    Rect m = rect(account_rect_.left, account_rect_.top - h - 8, w, h);
+    ui.fill_round(inset(m, -1, -1), 11, {0, 0, 0, 0.5f});
+    ui.fill_round(m, 10, {0.15f, 0.15f, 0.17f, 1});
+    float y = m.top + 6;
+    long long i = 0;
+    for (auto& it : items) {
+        Rect row = rect(m.left + 6, y, w - 12, rh);
+        auto fn = it.fn;
+        auto st = ui.region(make_id("nav.menu", i++), row, it.enabled ? std::function<void()>([this, fn] {
+            account_menu_ = false;
+            fn();
+        }) : nullptr);
+        if ((st.hover || st.focused) && it.enabled) ui.fill_round(row, 7, {1, 1, 1, 0.08f});
+        Color c = it.enabled ? theme::text : theme::tertiary;
+        widgets::glyph(ui, it.glyph, rect(row.left + 6, row.top, 24, rh), c, Font::IconSmall);
+        ui.text(it.label, rect(row.left + 38, row.top, w - 50, rh), {Font::Body, c});
+        y += rh;
+    }
 }
 
 void ShellScreen::paint(Ui& ui, const Rect& b) {
@@ -155,6 +207,10 @@ void ShellScreen::paint(Ui& ui, const Rect& b) {
     Rect content = {b.left + kSidebar, b.top, b.right, b.bottom};
     Page* page = search_page_ ? search_page_.get() : stack_.empty() ? nullptr : stack_.back().get();
     bool can_back = !search_page_ && stack_.size() > 1;
+    if (page != last_page_) {
+        if (last_page_) last_page_->on_hide();
+        last_page_ = page;
+    }
     if (page) {
         page->show_back = can_back;
         page->paint_page(ui, content);
@@ -168,6 +224,7 @@ void ShellScreen::paint(Ui& ui, const Rect& b) {
     }
 
     paint_sidebar(ui, rect(b.left, b.top, kSidebar, height(b)));
+    if (account_menu_) paint_account_menu(ui, b);
 }
 
 }

@@ -40,6 +40,7 @@ add_executable(ciniva WIN32
     src/screens/components.cpp
     src/screens/login_screen.cpp
     src/screens/pages.cpp
+    src/screens/settings_page.cpp
     src/screens/shell_screen.cpp
     src/ui/images.cpp
     src/ui/text_field.cpp

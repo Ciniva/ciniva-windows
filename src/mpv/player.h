@@ -69,6 +69,7 @@ public:
     void select_audio(const std::string& id);
     void select_subtitle(const std::string& id);
     void toggle_stats();
+    void apply_settings();
     void command(std::initializer_list<const char*> args);
     void set(const char* name, const std::string& value);
 

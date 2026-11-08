@@ -11,7 +11,7 @@ namespace ciniva {
 
 class ShellScreen : public Screen {
 public:
-    enum class Section { Home, Movies, Shows };
+    enum class Section { Home, Movies, Shows, Settings };
 
     ShellScreen(HWND hwnd, AppModel& model);
     void paint(ui::Ui& ui, const ui::Rect& bounds) override;
@@ -24,6 +24,7 @@ private:
     void push(std::unique_ptr<Page> page);
     bool back();
     void paint_sidebar(ui::Ui& ui, const ui::Rect& r);
+    void paint_account_menu(ui::Ui& ui, const ui::Rect& b);
     void search_changed();
     Nav nav();
 
@@ -35,6 +36,9 @@ private:
     std::string query_;
     int search_generation_ = 0;
     ui::TextField search_;
+    Page* last_page_ = nullptr;
+    bool account_menu_ = false;
+    ui::Rect account_rect_ = {};
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 

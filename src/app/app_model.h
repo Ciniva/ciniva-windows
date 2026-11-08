@@ -52,6 +52,9 @@ public:
 
     std::function<void()> on_changed;
     std::function<void(const PlaybackRequest&)> on_play;
+    std::function<void()> on_settings_changed;
+    std::function<void()> on_check_updates;
+    std::string update_status;
 
     void bootstrap();
     void sign_in(const std::string& server_text, const std::string& username, const std::string& password);
@@ -64,6 +67,7 @@ public:
     void play(const PlaybackRequest& request);
     void library_changed();
     void set_watched(std::vector<int> file_ids, bool watched);
+    void load_plugins();
 
     // Runs a client call on the thread pool; a 401 sends the user back to sign-in before done sees the error.
     template <class Work, class Done>
@@ -77,7 +81,6 @@ private:
     void start_events();
     void stop_events();
     void handle_event(const std::string& name, const nlohmann::json& data);
-    void load_plugins();
     void changed();
 
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);

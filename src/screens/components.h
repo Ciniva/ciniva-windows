@@ -29,6 +29,7 @@ public:
     virtual void load() = 0;
     virtual bool on_key(WPARAM) { return false; }
     virtual bool has_hero() const { return false; }
+    virtual void on_hide() {}
     bool show_back = false;
 
 protected:
