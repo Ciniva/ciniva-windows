@@ -49,7 +49,7 @@ float page_header(Ui& ui, const Rect& r, float y, const std::string& title, cons
     float x = r.left + kPad + (back ? 48 : 0);
     ui.text(title, rect(x, y, r.right - kPad - x, 36), {Font::Title});
     if (!subtitle.empty()) ui.text(subtitle, rect(x, y + 38, r.right - kPad - x, 20), {Font::Body, theme::secondary});
-    return subtitle.empty() ? 50 : 72;
+    return subtitle.empty() ? 50.0f : 72.0f;
 }
 
 class HomePage : public Page {

@@ -3,6 +3,7 @@
 #include "app/app_model.h"
 #include "app/overlay_window.h"
 #include "app/renderer.h"
+#include "app/updater.h"
 #include "app/video_host.h"
 #include "mpv/player.h"
 #include "player/player_screen.h"
@@ -54,6 +55,7 @@ private:
     Screen* current_ = nullptr;
     std::unique_ptr<mpv::Player> player_;
     std::unique_ptr<PlayerScreen> screen_;
+    std::unique_ptr<Updater> updater_;
     std::optional<PlaybackRequest> pending_play_;
     bool first_paint_done_ = false;
     bool fullscreen_ = false;

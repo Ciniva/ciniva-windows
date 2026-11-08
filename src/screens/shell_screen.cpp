@@ -150,6 +150,16 @@ void ShellScreen::paint_sidebar(Ui& ui, const Rect& r) {
     item("Shows", icon::tv, !searching && section_ == Section::Shows, make_id("nav.shows"), [this] { select(Section::Shows); });
 
     float by = r.bottom - 70;
+    if (model_.update_installing) {
+        Rect u = rect(x, by - 46, w, 36);
+        ui.fill_round(u, 9, theme::surface);
+        widgets::spinner(ui, {u.left + 20, u.top + 18}, 7);
+        ui.text("Updating\xE2\x80\xA6", rect(u.left + 38, u.top, w - 44, 36), {Font::Body});
+    } else if (!model_.update_version.empty()) {
+        widgets::button(ui, make_id("nav.update"), rect(x, by - 46, w, 36), "Update to " + model_.update_version,
+                        widgets::Style::Primary, [this] { if (model_.on_install_update) model_.on_install_update(); }, true,
+                        icon::download);
+    }
     ui.line({r.left + 14, by}, {r.right - 14, by}, theme::stroke);
     by += 12;
     std::string host = model_.client ? model_.client->base_url() : "";

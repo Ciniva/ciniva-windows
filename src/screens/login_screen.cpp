@@ -42,7 +42,7 @@ void LoginScreen::paint(Ui& ui, const Rect& b) {
     ui.fill(b, theme::background);
     float w = 380;
     float x = (b.left + b.right - w) / 2;
-    float h = 420 + (model_.error.empty() ? 0 : 56);
+    float h = 420 + (model_.error.empty() ? 0.0f : 56.0f);
     float y = std::max(b.top + 24, (b.top + b.bottom - h) / 2);
 
     ui.text("Ciniva", rect(x, y, w, 44), {Font::Huge, theme::accent, Align::Center});

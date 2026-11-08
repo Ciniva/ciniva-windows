@@ -1,6 +1,7 @@
 #include "core/client.h"
 #include "core/models.h"
 #include "core/sse.h"
+#include "core/update.h"
 #include "core/url.h"
 
 #include <cstdio>
@@ -82,12 +83,34 @@ static void test_client_urls() {
     CHECK(c.subtitle_url(2, 3) == "http://srv1.local:8484/api/files/2/subtitles/3.vtt?token=a%20b");
 }
 
+static void test_update() {
+    using namespace ciniva::update;
+    CHECK(is_newer("0.2.0", "0.1.9"));
+    CHECK(is_newer("v1.10", "1.9.3"));
+    CHECK(!is_newer("1.0", "1.0.0"));
+    CHECK(!is_newer("0.9.9", "1.0"));
+
+    // RFC 8032 test 2: one-byte message 0x72.
+    const char* key = "PUAXw+hDiVqStwqnTRt+vJyYLM8uxJaMwM1V8Sr0Zgw=";
+    const char* sig = "kqAJqfDUyrhyDoILX2QlQKKye1QWUD+Ps3YiI+vbadoIWsHkPhWZbkWPNhPQ8R2MOHsurrQwKu6wDSkWErsMAA==";
+    CHECK(verify("r", sig, key));
+    CHECK(!verify("s", sig, key));
+    CHECK(!verify("r", sig));
+
+    auto r = parse_release(R"({"tag_name": "v0.2.0", "draft": false, "prerelease": false, "body": "notes",
+        "assets": [{"name": "Ciniva-0.2.0-win64.zip.sig", "browser_download_url": "https://x/s"},
+                   {"name": "Ciniva-0.2.0-win64.zip", "browser_download_url": "https://x/z"}]})");
+    CHECK(r && r->version == "0.2.0" && r->archive_url == "https://x/z" && r->signature_url == "https://x/s");
+    CHECK(!parse_release(R"({"tag_name": "v0.2.0", "assets": [{"name": "a.zip", "browser_download_url": "u"}]})"));
+}
+
 int main() {
     test_normalize();
     test_encode();
     test_sse();
     test_models();
     test_client_urls();
+    test_update();
     if (failures) std::fprintf(stderr, "%d failure(s)\n", failures);
     else std::puts("all tests passed");
     return failures ? 1 : 0;

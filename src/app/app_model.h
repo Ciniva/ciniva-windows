@@ -55,6 +55,9 @@ public:
     std::function<void()> on_settings_changed;
     std::function<void()> on_check_updates;
     std::string update_status;
+    std::string update_version;
+    bool update_installing = false;
+    std::function<void()> on_install_update;
 
     void bootstrap();
     void sign_in(const std::string& server_text, const std::string& username, const std::string& password);

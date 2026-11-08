@@ -1,0 +1,54 @@
+name: App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-${{ hashFiles('cmake/Deps.cmake') }}
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build --config Release -- /m
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "Ciniva-$env:VERSION-win64.zip"
+          Compress-Archive -Path build/Release/ciniva.exe, build/Release/libmpv-2.dll -DestinationPath $zip
+          "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ciniva-${{ env.VERSION }}-win64
+          path: ${{ env.ZIP }}
+      - name: Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          gh release view "v$env:VERSION" *> $null
+          if ($LASTEXITCODE -eq 0) { "v$env:VERSION is already released."; exit 0 }
+          if (-not $env:UPDATE_SIGNING_KEY) { Write-Error "UPDATE_SIGNING_KEY is not set; not releasing."; exit 1 }
+          python -m pip install --quiet cryptography
+          python scripts/sign-update.py $env:ZIP | Out-File -FilePath "$env:ZIP.sig" -Encoding ascii -NoNewline
+          gh release create "v$env:VERSION" $env:ZIP "$env:ZIP.sig" --title "Ciniva for Windows $env:VERSION" --generate-notes --target $env:GITHUB_SHA

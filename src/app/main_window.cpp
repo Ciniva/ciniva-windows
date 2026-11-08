@@ -72,6 +72,19 @@ bool MainWindow::create(const LaunchOptions& options, int show) {
     // mpv and the overlay are created after the first frame so they don't delay startup.
     PostMessageW(hwnd_, WM_APP_START_PLAYER, 0, 0);
     if (options_.url.empty()) model_.bootstrap();
+
+    updater_ = std::make_unique<Updater>(
+        [this] {
+            model_.update_status = updater_->status();
+            model_.update_version = updater_->phase() == Updater::Phase::Available ? updater_->available()->version : "";
+            model_.update_installing = updater_->phase() == Updater::Phase::Installing;
+            if (updater_->phase() == Updater::Phase::Failed) model_.toast(updater_->status(), Tone::Error);
+            invalidate();
+        },
+        [this] { PostMessageW(hwnd_, WM_CLOSE, 0, 0); });
+    model_.on_check_updates = [this] { updater_->check(true); };
+    model_.on_install_update = [this] { updater_->install(); };
+    if (options_.url.empty()) updater_->start_automatic_checks();
     return true;
 }
 
