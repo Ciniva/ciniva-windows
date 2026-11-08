@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <d2d1_1.h>
 #include <d3d11.h>
+#include <dcomp.h>
 #include <dwrite.h>
 #include <dxgi1_2.h>
 #include <wrl/client.h>
@@ -13,7 +14,7 @@ using Microsoft::WRL::ComPtr;
 
 class Renderer {
 public:
-    bool init(HWND hwnd);
+    bool init(HWND hwnd, bool composition = false);
     void resize();
     void set_dpi(UINT dpi);
 
@@ -42,6 +43,10 @@ private:
     ComPtr<ID2D1Device> device_;
     ComPtr<ID2D1DeviceContext> context_;
     ComPtr<ID2D1Bitmap1> target_;
+    ComPtr<IDCompositionDevice> dcomp_;
+    ComPtr<IDCompositionTarget> dcomp_target_;
+    ComPtr<IDCompositionVisual> dcomp_visual_;
+    bool composition_ = false;
 };
 
 }

@@ -33,6 +33,7 @@ add_executable(ciniva WIN32
     src/app/app_model.cpp
     src/app/dispatch.cpp
     src/app/main_window.cpp
+    src/app/overlay_window.cpp
     src/app/renderer.cpp
     src/app/timing.cpp
     src/app/video_host.cpp
@@ -46,11 +47,12 @@ add_executable(ciniva WIN32
     src/ui/widgets.cpp
     src/mpv/mpv_api.cpp
     src/mpv/player.cpp
+    src/player/player_screen.cpp
     res/ciniva.rc
     res/ciniva.manifest
 )
 target_include_directories(ciniva PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated" ${MPV_INCLUDE_DIR})
-target_link_libraries(ciniva PRIVATE ciniva_core d3d11 dxgi d2d1 dwrite windowscodecs dwmapi comctl32)
+target_link_libraries(ciniva PRIVATE ciniva_core d3d11 dxgi d2d1 dwrite windowscodecs dwmapi comctl32 dcomp)
 set_target_properties(ciniva PROPERTIES OUTPUT_NAME ciniva)
 add_custom_command(TARGET ciniva POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MPV_DLL}" "$<TARGET_FILE_DIR:ciniva>"

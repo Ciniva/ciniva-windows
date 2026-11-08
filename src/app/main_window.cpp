@@ -2,6 +2,7 @@
 
 #include "app/dispatch.h"
 #include "app/timing.h"
+#include "core/settings.h"
 #include "core/text.h"
 #include "screens/login_screen.h"
 #include "screens/shell_screen.h"
@@ -18,6 +19,7 @@ namespace {
 
 constexpr UINT WM_APP_MPV_WAKEUP = WM_APP + 1;
 constexpr UINT WM_APP_MPV_READY = WM_APP + 2;
+constexpr UINT WM_APP_START_PLAYER = WM_APP + 3;
 constexpr UINT_PTR kToastTimer = 1;
 constexpr const wchar_t* kClass = L"CinivaMainWindow";
 
@@ -62,19 +64,98 @@ bool MainWindow::create(const LaunchOptions& options, int show) {
         invalidate();
     };
     model_.on_play = [this](const PlaybackRequest& req) { play(req); };
-    login_ =std::make_unique<LoginScreen>(hwnd_, model_);
+    login_ = std::make_unique<LoginScreen>(hwnd_, model_);
     shell_ = std::make_unique<ShellScreen>(hwnd_, model_);
 
     ShowWindow(hwnd_, show);
     UpdateWindow(hwnd_);
-    if (!options_.url.empty()) start_player();
-    else model_.bootstrap();
+    // mpv and the overlay are created after the first frame so they don't delay startup.
+    PostMessageW(hwnd_, WM_APP_START_PLAYER, 0, 0);
+    if (options_.url.empty()) model_.bootstrap();
     return true;
+}
+
+void MainWindow::create_player() {
+    player_ = std::make_unique<mpv::Player>(hwnd_, WM_APP_MPV_WAKEUP, WM_APP_MPV_READY);
+
+    PlayerScreen::Host host;
+    host.close = [this] {
+        if (fullscreen_) toggle_fullscreen();
+        sync_screen();
+        model_.library_changed();
+        if (options_.exit_after_first_frame) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
+    };
+    host.toggle_fullscreen = [this] { toggle_fullscreen(); };
+    host.is_fullscreen = [this] { return fullscreen_; };
+    host.redraw = [this] { overlay_.invalidate(); };
+    host.show_video = [this](bool on) {
+        layout();
+        video_.show(on);
+        overlay_.show(on);
+        if (on) SetFocus(hwnd_);
+        sync_screen();
+        invalidate();
+    };
+    screen_ = std::make_unique<PlayerScreen>(model_, *player_, std::move(host));
+
+    OverlayWindow::Handlers oh;
+    oh.paint = [this](ui::Ui& ui, const ui::Rect& b) { screen_->paint(ui, b); };
+    oh.activity = [this] { screen_->on_activity(); };
+    oh.tick = [this] { screen_->tick(); };
+    oh.cursor_hidden = [this] { return screen_->cursor_hidden(); };
+    oh.click = [this](D2D1_POINT_2F p) { screen_->on_click(p); return true; };
+    oh.double_click = [this](D2D1_POINT_2F) { screen_->on_double_click(); };
+    oh.wheel = [this](D2D1_POINT_2F, float d) { screen_->on_wheel(d); };
+    overlay_.create(hwnd_, std::move(oh));
+
+    mpv::Player::Callbacks cb;
+    cb.ready = [this](bool ok, const std::string& error) {
+        if (!ok) {
+            model_.toast("Player failed to start: " + error, Tone::Error);
+            return;
+        }
+        if (pending_play_) {
+            auto req = *pending_play_;
+            pending_play_.reset();
+            screen_->start(req);
+        }
+    };
+    cb.file_loaded = [this] { screen_->on_file_loaded(); };
+    cb.first_frame = [this] {
+        auto& st = player_->state();
+        timing::log("video: %s, primaries=%s, gamma=%s, hwdec=%s, output %s/%s", st.video_format.c_str(),
+                    st.primaries.c_str(), st.gamma.c_str(), st.hwdec.c_str(), st.target_primaries.c_str(),
+                    st.target_gamma.c_str());
+        if (options_.exit_after_first_frame) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
+    };
+    cb.ended = [this](bool eof, const std::string& error) { screen_->on_ended(eof, error); };
+    cb.changed = [this] { screen_->on_changed(); };
+    cb.tracks_changed = [this] { screen_->on_tracks_changed(); };
+    player_->set_callbacks(std::move(cb));
+    player_->start(video_.hwnd(), Settings::get().volume);
+
+    if (!options_.url.empty()) {
+        PlaybackRequest req;
+        req.url = options_.url;
+        req.title = options_.url.substr(options_.url.find_last_of("/\\") + 1);
+        req.start_at = options_.start;
+        play(req);
+    }
+}
+
+void MainWindow::play(const PlaybackRequest& req) {
+    timing::log("play: %s", req.title.c_str());
+    if (!player_ || !player_->ready()) {
+        pending_play_ = req;
+        return;
+    }
+    screen_->start(req);
 }
 
 void MainWindow::sync_screen() {
     Screen* want = nullptr;
-    if (!player_ || !video_.visible()) {
+    bool playing = screen_ && screen_->active();
+    if (!playing) {
         if (model_.phase == AppModel::Phase::SignedOut) want = login_.get();
         else if (model_.phase == AppModel::Phase::Ready) want = shell_.get();
     }
@@ -120,10 +201,16 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SIZE:
         renderer_.resize();
         layout();
+        overlay_.sync_to_owner();
         invalidate();
         return 0;
+    case WM_MOVE:
+    case WM_WINDOWPOSCHANGED:
+        overlay_.sync_to_owner();
+        break;
     case WM_DPICHANGED: {
         renderer_.set_dpi(HIWORD(wp));
+        overlay_.set_dpi(HIWORD(wp));
         auto* rc = reinterpret_cast<RECT*>(lp);
         SetWindowPos(hwnd_, nullptr, rc->left, rc->top, rc->right - rc->left, rc->bottom - rc->top,
                      SWP_NOZORDER | SWP_NOACTIVATE);
@@ -168,8 +255,7 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
         invalidate();
         return 0;
     case WM_LBUTTONDBLCLK:
-        if (player_ && video_.visible()) toggle_fullscreen();
-        else if (ui_) ui_->on_double_click(to_dip(lp));
+        if (ui_) ui_->on_double_click(to_dip(lp));
         return 0;
     case WM_XBUTTONUP:
         if (GET_XBUTTON_WPARAM(wp) == XBUTTON1) on_key(VK_BROWSER_BACK);
@@ -198,6 +284,18 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         break;
+    case WM_APPCOMMAND: {
+        int cmd = GET_APPCOMMAND_LPARAM(lp);
+        WPARAM key = cmd == APPCOMMAND_MEDIA_PLAY_PAUSE ? VK_MEDIA_PLAY_PAUSE
+                     : cmd == APPCOMMAND_MEDIA_NEXTTRACK ? VK_MEDIA_NEXT_TRACK
+                     : cmd == APPCOMMAND_MEDIA_PREVIOUSTRACK ? VK_MEDIA_PREV_TRACK
+                     : cmd == APPCOMMAND_BROWSER_BACKWARD ? VK_BROWSER_BACK : 0;
+        if (key) {
+            on_key(key);
+            return TRUE;
+        }
+        break;
+    }
     case WM_TIMER:
         if (wp == kToastTimer) {
             model_.expire_toasts(timing::now_seconds());
@@ -211,6 +309,10 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
     case dispatch::WM_APP_INVOKE:
         dispatch::handle_invoke(lp);
         invalidate();
+        overlay_.invalidate();
+        return 0;
+    case WM_APP_START_PLAYER:
+        create_player();
         return 0;
     case WM_APP_MPV_READY:
         if (player_) player_->on_ready_message(wp);
@@ -219,6 +321,8 @@ LRESULT MainWindow::handle(UINT msg, WPARAM wp, LPARAM lp) {
         if (player_) player_->drain_events();
         return 0;
     case WM_CLOSE:
+        if (screen_) screen_->stop();
+        screen_.reset();
         player_.reset();
         DestroyWindow(hwnd_);
         return 0;
@@ -241,7 +345,7 @@ void MainWindow::paint() {
     auto size = renderer_.size_dip();
     ui::Rect bounds = {0, 0, size.width, size.height};
     ui_->begin_frame(ctx, timing::now_seconds());
-    if (video_.visible()) {
+    if (screen_ && screen_->active()) {
         ctx->Clear(D2D1::ColorF(0, 0, 0));
     } else if (current_) {
         current_->paint(*ui_, bounds);
@@ -265,74 +369,10 @@ void MainWindow::paint() {
     }
 }
 
-void MainWindow::play(const PlaybackRequest& req) {
-    std::string url;
-    if (req.url) url = *req.url;
-    else if (model_.client && req.download_id) url = model_.client->download_stream_url(*req.download_id);
-    else if (model_.client && req.file_id) url = model_.client->stream_url(*req.file_id);
-    if (url.empty()) return;
-    options_.url = url;
-    options_.start = req.start_at.value_or(0);
-    timing::log("play: %s", req.title.c_str());
-    if (!player_) {
-        start_player();
-        return;
-    }
-    if (!player_->ready()) return;
-    layout();
-    video_.show(true);
-    sync_screen();
-    invalidate();
-    player_->load(url, options_.start);
-}
-
-void MainWindow::start_player() {
-    mpv::Player::Callbacks cb;
-    cb.ready = [this](bool ok, const std::string& error) {
-        if (!ok) {
-            model_.toast("Player failed: " + error, Tone::Error);
-            return;
-        }
-        layout();
-        video_.show(true);
-        sync_screen();
-        invalidate();
-        player_->load(options_.url, options_.start);
-    };
-    cb.first_frame = [this] {
-        auto& st = player_->state();
-        timing::log("video: %s, primaries=%s, gamma=%s, hwdec=%s", st.video_format.c_str(), st.primaries.c_str(),
-                    st.gamma.c_str(), st.hwdec.c_str());
-        if (options_.exit_after_first_frame) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
-    };
-    cb.ended = [this](const std::string& reason) {
-        video_.show(false);
-        if (reason.rfind("error", 0) == 0) model_.toast("Playback failed: " + reason.substr(7), Tone::Error);
-        if (options_.exit_after_first_frame) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
-        sync_screen();
-        invalidate();
-    };
-    player_ = std::make_unique<mpv::Player>(hwnd_, WM_APP_MPV_WAKEUP, WM_APP_MPV_READY, std::move(cb));
-    player_->start(video_.hwnd());
-}
-
 void MainWindow::on_key(WPARAM key) {
-    if (player_ && video_.visible()) {
-        bool shift = GetKeyState(VK_SHIFT) < 0;
-        bool ctrl = GetKeyState(VK_CONTROL) < 0;
-        double step = ctrl ? 60 : shift ? 30 : 10;
-        switch (key) {
-        case VK_SPACE: player_->toggle_pause(); break;
-        case VK_LEFT: player_->seek_relative(-step); break;
-        case VK_RIGHT: player_->seek_relative(step); break;
-        case 'I': player_->toggle_stats(); break;
-        case 'F': toggle_fullscreen(); break;
-        case VK_ESCAPE:
-        case VK_BROWSER_BACK:
-            if (fullscreen_) toggle_fullscreen();
-            else player_->command({"stop"});
-            break;
-        }
+    if (screen_ && screen_->active()) {
+        screen_->on_key(key);
+        overlay_.invalidate();
         return;
     }
     if (key == VK_F11) {
@@ -364,6 +404,8 @@ void MainWindow::toggle_fullscreen() {
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         fullscreen_ = false;
     }
+    overlay_.sync_to_owner();
+    overlay_.invalidate();
 }
 
 }

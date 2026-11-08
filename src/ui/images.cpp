@@ -117,7 +117,10 @@ ID2D1Bitmap* ImageCache::get(ID2D1DeviceContext* ctx, unsigned generation, const
     if (e.state != State::Ready) return nullptr;
     if (!e.gpu || e.generation != generation) {
         e.gpu.Reset();
-        ctx->CreateBitmapFromWicBitmap(e.cpu.Get(), nullptr, &e.gpu);
+        ctx->CreateBitmapFromWicBitmap(
+            e.cpu.Get(),
+            D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED), 96, 96),
+            &e.gpu);
         e.generation = generation;
         if (!e.gpu) return nullptr;
     }

@@ -233,6 +233,15 @@ void Ui::image(const std::optional<std::string>& url, const Rect& r, float radiu
     else ctx_->FillRectangle(r, brush.Get());
 }
 
+bool Ui::image_tile(const std::string& url, const Rect& source_px, const Rect& dest) {
+    float alpha = 0;
+    ID2D1Bitmap* bmp = images_.get(ctx_, renderer_.generation(), url, 0, now_, &alpha);
+    if (!bmp) return false;
+    // WIC bitmaps carry 96 DPI, so the source rectangle in DIPs equals pixels.
+    ctx_->DrawBitmap(bmp, dest, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, &source_px);
+    return true;
+}
+
 void Ui::push_clip(const Rect& r) {
     Rect c = intersect(r, clip());
     clips_.push_back(c);

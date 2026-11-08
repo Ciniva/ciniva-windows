@@ -126,6 +126,8 @@ public:
     void image(const std::optional<std::string>& url, const Rect& r, float radius, int decode_width,
                Color placeholder = theme::surface, float opacity = 1);
 
+    bool image_tile(const std::string& url, const Rect& source_px, const Rect& dest);
+
     void push_clip(const Rect& r);
     void pop_clip();
     Rect clip() const { return clips_.empty() ? Rect{-1e6f, -1e6f, 1e6f, 1e6f} : clips_.back(); }
