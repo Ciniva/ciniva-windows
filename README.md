@@ -42,4 +42,4 @@ Playback uses `vo=gpu-next`, `gpu-api=d3d11` and `target-colorspace-hint=yes`, s
 
 ## Releases
 
-Pushing a new `VERSION` to `main` makes CI build, test, zip `ciniva.exe` and `libmpv-2.dll`, sign the zip with the `UPDATE_SIGNING_KEY` secret (base64 raw Ed25519 private key, same key as the Mac app) and publish release `v<VERSION>`.
+Pull requests and manual runs on any branch build and test (the zip is a workflow artifact). Pushing tag `v<VERSION>` makes CI build, test, zip `ciniva.exe` and `libmpv-2.dll`, sign the zip with the `UPDATE_SIGNING_KEY` secret (base64 raw Ed25519 private key, same key as the Mac app) and publish release `v<VERSION>`.
