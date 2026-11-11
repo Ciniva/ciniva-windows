@@ -153,6 +153,10 @@ static void test_live() {
 
     ciniva::Client c("http://srv1.local:8484", "a b");
     CHECK(c.live_url("/api/live/s1/index.m3u8") == "http://srv1.local:8484/api/live/s1/index.m3u8?token=a%20b");
+    CHECK(c.image_url(std::string("/api/plugins/iptv/ui/logos/bbc.one")) ==
+          "http://srv1.local:8484/api/plugins/iptv/ui/logos/bbc.one?token=a%20b");
+    CHECK(c.image_url(std::string("https://logos/1.png")) == "https://logos/1.png");
+    CHECK(c.image_url(std::string("/p.jpg"), "w185") == "http://srv1.local:8484/api/images/w185/p.jpg?token=a%20b");
 }
 
 int main() {
