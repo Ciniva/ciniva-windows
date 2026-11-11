@@ -24,6 +24,7 @@ private:
     void select_plugin(const std::string& plugin, const std::string& page);
     void push(std::unique_ptr<Page> page);
     bool back();
+    void forget(Page* page);
     void paint_sidebar(ui::Ui& ui, const ui::Rect& r);
     void paint_account_menu(ui::Ui& ui, const ui::Rect& b);
     void search_changed();

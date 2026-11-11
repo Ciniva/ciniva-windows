@@ -45,6 +45,13 @@ void ShellScreen::on_hide() {
     account_menu_ = false;
 }
 
+// paint() calls on_hide() on last_page_ when the page changes, so a page about to be destroyed must not stay there.
+void ShellScreen::forget(Page* page) {
+    if (!page || page != last_page_) return;
+    last_page_->on_hide();
+    last_page_ = nullptr;
+}
+
 void ShellScreen::select(Section s) {
     section_ = s;
     account_menu_ = false;
@@ -82,12 +89,14 @@ void ShellScreen::push(std::unique_ptr<Page> page) {
 
 bool ShellScreen::back() {
     if (search_page_) {
+        forget(search_page_.get());
         search_page_.reset();
         query_.clear();
         search_.set_text(L"");
         return true;
     }
     if (stack_.size() <= 1) return false;
+    forget(stack_.back().get());
     stack_.pop_back();
     InvalidateRect(hwnd_, nullptr, FALSE);
     return true;
@@ -102,6 +111,7 @@ void ShellScreen::search_changed() {
         dispatch::post([this, alive, gen, q] {
             if (alive.expired() || gen != search_generation_) return;
             query_ = q;
+            forget(search_page_.get());
             search_page_ = q.empty() ? nullptr : make_search_page(nav(), q);
         });
     });
