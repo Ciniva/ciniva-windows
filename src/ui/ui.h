@@ -127,6 +127,8 @@ public:
                Color placeholder = theme::surface, float opacity = 1);
 
     bool image_tile(const std::string& url, const Rect& source_px, const Rect& dest);
+    // Draws the image scaled to fit inside r; false while it loads or when it failed.
+    bool logo(const std::optional<std::string>& url, const Rect& r, int decode_width);
 
     void push_clip(const Rect& r);
     void pop_clip();

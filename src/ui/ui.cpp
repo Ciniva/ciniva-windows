@@ -242,6 +242,21 @@ bool Ui::image_tile(const std::string& url, const Rect& source_px, const Rect& d
     return true;
 }
 
+bool Ui::logo(const std::optional<std::string>& url, const Rect& r, int decode_width) {
+    if (!url || url->empty()) return false;
+    float alpha = 0;
+    ID2D1Bitmap* bmp = images_.get(ctx_, renderer_.generation(), *url, decode_width, now_, &alpha);
+    if (!bmp) return false;
+    if (alpha < 1) request_frame();
+    auto size = bmp->GetSize();
+    if (size.width <= 0 || size.height <= 0) return false;
+    float scale = std::min(width(r) / size.width, height(r) / size.height);
+    float w = size.width * scale, h = size.height * scale;
+    Rect dest = rect(r.left + (width(r) - w) / 2, r.top + (height(r) - h) / 2, w, h);
+    ctx_->DrawBitmap(bmp, dest, alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+    return true;
+}
+
 void Ui::push_clip(const Rect& r) {
     Rect c = intersect(r, clip());
     clips_.push_back(c);

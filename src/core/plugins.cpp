@@ -61,6 +61,15 @@ std::optional<Call> parse_call(const json& j) {
     return c;
 }
 
+std::optional<Play> parse_play(const json& j) {
+    if (!j.is_object()) return std::nullopt;
+    Play p;
+    p.stream = str(j, "stream");
+    if (p.stream.empty()) return std::nullopt;
+    p.title = str(j, "title");
+    return p;
+}
+
 Action parse_action(const json& j) {
     Action a;
     a.label = str(j, "label");
@@ -69,6 +78,7 @@ Action parse_action(const json& j) {
     a.confirm = str(j, "confirm");
     if (j.is_object() && j.contains("call")) a.call = parse_call(j["call"]);
     if (j.is_object() && j.contains("navigate")) a.navigate = parse_nav(j["navigate"]);
+    if (j.is_object() && j.contains("play")) a.play = parse_play(j["play"]);
     return a;
 }
 
@@ -204,6 +214,7 @@ View parse_view(const json& j) {
                 for (auto& bd : arr(it, "badges")) item.badges.push_back({str(bd, "text"), str(bd, "tone")});
                 for (auto& a : arr(it, "actions")) item.actions.push_back(parse_action(a));
                 if (it.is_object() && it.contains("link")) item.link = parse_nav(it["link"]);
+                if (it.is_object() && it.contains("play")) item.play = parse_play(it["play"]);
                 block.items.push_back(item);
             }
         }
@@ -221,6 +232,40 @@ Result parse_result(const json& j) {
     if (j.contains("navigate")) r.navigate = parse_nav(j["navigate"]);
     r.refresh = flag(j, "refresh");
     return r;
+}
+
+Channel channel(const Item& item) {
+    if (!item.play) return {};
+    return {item.play->stream, item.play->title.empty() ? item.title : item.play->title, item.image};
+}
+
+std::vector<Channel> channels(const Block& list) {
+    std::vector<Channel> out;
+    for (auto& it : list.items)
+        if (it.play) out.push_back(channel(it));
+    return out;
+}
+
+size_t step_channel(size_t index, int step, size_t count) {
+    if (count == 0) return 0;
+    long long n = static_cast<long long>(count);
+    long long i = (static_cast<long long>(index % count) + step % n + n) % n;
+    return static_cast<size_t>(i);
+}
+
+json live_request() {
+    return {{"video_copy", "h264,hevc,av1,vp9"}, {"audio_copy", "aac,ac3,eac3"}, {"max_height", 2160}, {"audio_channels", 2}};
+}
+
+std::optional<LiveStart> parse_live(const json& j) {
+    if (!j.is_object()) return std::nullopt;
+    LiveStart l;
+    l.session = str(j, "session");
+    l.playlist = str(j, "playlist");
+    if (l.playlist.empty()) return std::nullopt;
+    l.title = str(j, "title");
+    l.image = str(j, "image");
+    return l;
 }
 
 std::vector<Field> parse_fields(const json& j) {

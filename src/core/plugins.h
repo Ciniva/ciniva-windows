@@ -47,6 +47,11 @@ struct Call {
     json body;
 };
 
+struct Play {
+    std::string stream;
+    std::string title;
+};
+
 struct Action {
     std::string label;
     std::string icon;
@@ -54,6 +59,7 @@ struct Action {
     std::string confirm;
     std::optional<Call> call;
     std::optional<Nav> navigate;
+    std::optional<Play> play;
 };
 
 struct Option {
@@ -88,6 +94,7 @@ struct Item {
     std::vector<Badge> badges;
     std::vector<Action> actions;
     std::optional<Nav> link;
+    std::optional<Play> play;
 };
 
 struct Form {
@@ -119,6 +126,19 @@ struct View {
     std::vector<Block> blocks;
 };
 
+struct Channel {
+    std::string stream;
+    std::string title;
+    std::string image;
+};
+
+struct LiveStart {
+    std::string session;
+    std::string playlist;
+    std::string title;
+    std::string image;
+};
+
 struct Result {
     std::string message;
     std::string tone;
@@ -132,6 +152,11 @@ View parse_view(const json& j);
 Result parse_result(const json& j);
 std::vector<Field> parse_fields(const json& j);
 std::string to_text(const json& v);
+std::vector<Channel> channels(const Block& list);
+Channel channel(const Item& item);
+size_t step_channel(size_t index, int step, size_t count);
+json live_request();
+std::optional<LiveStart> parse_live(const json& j);
 std::string base64_encode(const std::string& data);
 
 }

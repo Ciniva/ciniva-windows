@@ -102,6 +102,10 @@ void PlayerScreen::start(const PlaybackRequest& request) {
     menu_ = Menu::None;
     show_episodes_ = false;
     scrubbing_.reset();
+    live_ = request.live;
+    live_attempt_ = 0;
+    live_retry_at_ = 0;
+    live_stall_since_ = 0;
     if (!show_ || !request.show_id || show_->id != *request.show_id) {
         show_.reset();
         seasons_.clear();
@@ -109,6 +113,10 @@ void PlayerScreen::start(const PlaybackRequest& request) {
     }
     bump();
     host_.show_video(true);
+    if (live_) {
+        start_live();
+        return;
+    }
 
     int session = session_;
     std::weak_ptr<bool> alive = alive_;
@@ -181,6 +189,74 @@ void PlayerScreen::begin(double at) {
     last_report_ = timing::now_seconds();
 }
 
+void PlayerScreen::start_live() {
+    if (!live_ || live_->channels.empty() || !model_.client) return;
+    ++session_;
+    live_->index = std::min(live_->index, live_->channels.size() - 1);
+    const auto& ch = live_->channels[live_->index];
+    live_title_ = ch.title;
+    live_image_ = ch.image;
+    request_.title = ch.title;
+    error_.clear();
+    url_.clear();
+    buffering_ = true;
+    loaded_ = false;
+    ended_ = false;
+    paused_ = false;
+    live_retry_at_ = 0;
+    live_stall_since_ = 0;
+    menu_ = Menu::None;
+    tracks_.clear();
+    player_.stop();
+    host_.redraw();
+
+    int session = session_;
+    std::weak_ptr<bool> alive = alive_;
+    std::string plugin = live_->plugin, stream = ch.stream;
+    model_.call([plugin, stream](const Client& c) { return c.start_live(plugin, stream); },
+                [this, alive, session](Result<nlohmann::json> r) {
+                    if (alive.expired() || session != session_ || stopped_ || !model_.client) return;
+                    auto live = r.ok() ? plugins::parse_live(*r.value) : std::nullopt;
+                    if (!live) {
+                        error_ = r.ok() ? "The server sent a response Ciniva couldn't read." : r.error.message;
+                        buffering_ = false;
+                        host_.redraw();
+                        return;
+                    }
+                    if (!live->title.empty()) live_title_ = live->title;
+                    if (live_image_.empty()) live_image_ = live->image;
+                    url_ = model_.client->live_url(live->playlist);
+                    begin(0);
+                    host_.redraw();
+                });
+}
+
+void PlayerScreen::live_dropped() {
+    if (!live_ || live_retry_at_ > 0 || !error_.empty()) return;
+    loaded_ = false;
+    if (++live_attempt_ > 5) {
+        player_.stop();
+        error_ = "The channel stopped sending video.";
+        buffering_ = false;
+    } else {
+        buffering_ = true;
+        live_retry_at_ = timing::now_seconds() + std::min(8, live_attempt_);
+    }
+    host_.redraw();
+}
+
+void PlayerScreen::retry_live() {
+    live_attempt_ = 0;
+    start_live();
+}
+
+void PlayerScreen::zap(int step) {
+    if (!live_ || live_->channels.size() < 2) return;
+    live_->index = plugins::step_channel(live_->index, step, live_->channels.size());
+    live_attempt_ = 0;
+    start_live();
+}
+
 void PlayerScreen::load_neighbours() {
     if (!request_.show_id || !request_.file_id) {
         neighbours_loaded_ = true;
@@ -245,6 +321,20 @@ void PlayerScreen::tick() {
     if (visible != was_visible) host_.redraw();
     was_visible = visible;
 
+    if (live_) {
+        if (live_retry_at_ > 0 && now >= live_retry_at_) {
+            start_live();
+            return;
+        }
+        if (!url_.empty() && buffering_ && error_.empty() && live_retry_at_ == 0 && !paused_) {
+            if (live_stall_since_ == 0) live_stall_since_ = now;
+            else if (now - live_stall_since_ > 25) live_dropped();
+        } else {
+            live_stall_since_ = 0;
+        }
+        return;
+    }
+
     if (!paused_ && loaded_ && now - last_report_ >= 10) report(true);
 
     if (up_next_ && up_next_->countdown && now >= next_countdown_) {
@@ -306,6 +396,13 @@ void PlayerScreen::seek_by(double delta) { seek_to(position_ + delta); }
 void PlayerScreen::toggle_pause() {
     if (!loaded_) return;
     paused_ = !paused_;
+    double now = timing::now_seconds();
+    if (live_ && !paused_ && now - paused_at_ > 30) {
+        start_live();
+        bump();
+        return;
+    }
+    paused_at_ = now;
     player_.set_paused(paused_);
     if (paused_) report(true);
     bump();
@@ -400,12 +497,14 @@ void PlayerScreen::on_changed() {
     }
     if (st.paused != paused_ && loaded_) {
         paused_ = st.paused;
+        if (paused_) paused_at_ = timing::now_seconds();
         if (paused_) report(true);
         redraw = true;
     }
     bool buffering = st.buffering || st.seeking || !loaded_;
     if (buffering != buffering_) {
         buffering_ = buffering;
+        if (live_ && !buffering_) live_attempt_ = 0;
         redraw = true;
     }
     if (redraw && (controls_visible() || buffering_ || up_next_)) host_.redraw();
@@ -419,6 +518,10 @@ void PlayerScreen::on_tracks_changed() {
 
 void PlayerScreen::on_ended(bool eof, const std::string& error) {
     if (!active_ || stopped_) return;
+    if (live_) {
+        if (!url_.empty()) live_dropped();
+        return;
+    }
     if (!eof) {
         error_ = "Playback failed: " + error;
         buffering_ = false;
@@ -457,6 +560,44 @@ void PlayerScreen::cycle_subtitles() {
 bool PlayerScreen::on_key(WPARAM key) {
     if (!active_) return false;
     bool shift = GetKeyState(VK_SHIFT) < 0, ctrl = GetKeyState(VK_CONTROL) < 0;
+    if (live_) {
+        switch (key) {
+        case VK_UP:
+        case VK_PRIOR:
+        case VK_MEDIA_PREV_TRACK:
+            zap(-1);
+            bump();
+            return true;
+        case VK_DOWN:
+        case VK_NEXT:
+        case VK_MEDIA_NEXT_TRACK:
+            zap(1);
+            bump();
+            return true;
+        case VK_OEM_PLUS:
+        case VK_ADD:
+            set_volume(volume_ + 5);
+            bump();
+            return true;
+        case VK_OEM_MINUS:
+        case VK_SUBTRACT:
+            set_volume(volume_ - 5);
+            bump();
+            return true;
+        case VK_RETURN:
+            if (!error_.empty()) retry_live();
+            bump();
+            return true;
+        case VK_LEFT:
+        case VK_RIGHT:
+        case 'N':
+        case 'P':
+        case 'E':
+            return true;
+        default:
+            break;
+        }
+    }
     switch (key) {
     case VK_ESCAPE:
     case VK_BROWSER_BACK:
@@ -584,7 +725,10 @@ void PlayerScreen::paint(Ui& ui, const Rect& b) {
     }
     Rect content = b;
     if (show_episodes_) content.right -= 400;
-    if (controls_visible()) paint_controls(ui, content);
+    if (controls_visible()) {
+        if (live_) paint_live_controls(ui, content);
+        else paint_controls(ui, content);
+    }
     if (up_next_) paint_up_next(ui, content);
     if (show_episodes_) paint_episodes(ui, {b.right - 400, b.top, b.right, b.bottom});
     if (menu_ != Menu::None) paint_menu(ui, b);
@@ -623,21 +767,7 @@ void PlayerScreen::paint_controls(Ui& ui, const Rect& b) {
     if (episode) button("p.next", icon::next, [this] { if (next_) play_target(*next_, 0.0); }, next_.has_value());
 
     x += 6;
-    button("p.mute", volume_ <= 0 ? icon::mute : icon::volume, [this] {
-        if (volume_ > 0) {
-            volume_before_mute_ = volume_;
-            set_volume(0);
-        } else {
-            set_volume(volume_before_mute_ > 0 ? volume_before_mute_ : 100);
-        }
-    });
-    volume_rect_ = rect(x, y + h / 2 - 2, 100, 4);
-    Rect vhit = rect(x - 4, y, 108, h);
-    ui.region(make_id("p.vol"), vhit, [] {}, false);
-    if (auto* reg = ui.last_region()) reg->on_press = [this](D2D1_POINT_2F) { dragging_volume_ = true; };
-    widgets::progress_bar(ui, volume_rect_, volume_ / 150, {1, 1, 1, 0.95f}, {1, 1, 1, 0.25f});
-    ui.circle({volume_rect_.left + static_cast<float>(volume_ / 150) * 100, volume_rect_.top + 2}, 6, {1, 1, 1, 1});
-    x += 116;
+    x = paint_volume(ui, x, y, h);
 
     float rx = b.right - pad + 8;
     auto rbutton = [&](std::string_view key, const wchar_t* glyph, std::function<void()> fn, bool active = false) {
@@ -671,6 +801,75 @@ void PlayerScreen::paint_controls(Ui& ui, const Rect& b) {
         bx -= w;
         widgets::chip(ui, rect(bx, y + 9, w, 22), *it, {1, 1, 1, 0.15f});
         bx -= 6;
+    }
+}
+
+float PlayerScreen::paint_volume(Ui& ui, float x, float y, float h) {
+    widgets::icon_button(ui, make_id("p.mute"), rect(x, y, 40, h), volume_ <= 0 ? icon::mute : icon::volume, [this] {
+        if (volume_ > 0) {
+            volume_before_mute_ = volume_;
+            set_volume(0);
+        } else {
+            set_volume(volume_before_mute_ > 0 ? volume_before_mute_ : 100);
+        }
+    });
+    x += 46;
+    volume_rect_ = rect(x, y + h / 2 - 2, 100, 4);
+    Rect vhit = rect(x - 4, y, 108, h);
+    ui.region(make_id("p.vol"), vhit, [] {}, false);
+    if (auto* reg = ui.last_region()) reg->on_press = [this](D2D1_POINT_2F) { dragging_volume_ = true; };
+    widgets::progress_bar(ui, volume_rect_, volume_ / 150, {1, 1, 1, 0.95f}, {1, 1, 1, 0.25f});
+    ui.circle({volume_rect_.left + static_cast<float>(volume_ / 150) * 100, volume_rect_.top + 2}, 6, {1, 1, 1, 1});
+    return x + 116;
+}
+
+void PlayerScreen::paint_live_controls(Ui& ui, const Rect& b) {
+    ui.fill_gradient(rect(b.left, b.top, width(b), 150), {0, 0, 0, 0.7f}, {0, 0, 0, 0});
+    widgets::icon_button(ui, make_id("p.back"), rect(b.left + 24, b.top + 28, 40, 40), icon::back, [this] { close(); });
+    Rect logo = rect(b.left + 80, b.top + 24, 72, 48);
+    widgets::channel_logo(ui, model_.client ? model_.client->image_url(live_image_, "w185") : std::nullopt, logo, {1, 1, 1, 0.12f});
+    float tx = logo.right + 14, tw = std::max(80.0f, b.right - tx - 320);
+    ui.text(live_title_, rect(tx, b.top + 22, tw, 30), {Font::Heading, {1, 1, 1, 1}});
+    Rect badge = rect(tx, b.top + 54, widgets::chip_width(ui, "LIVE"), 20);
+    widgets::chip(ui, badge, "LIVE", {0.90f, 0.22f, 0.23f, 1}, {1, 1, 1, 1});
+    size_t count = live_->channels.size();
+    if (count > 1)
+        ui.text(std::to_string(live_->index + 1) + " / " + std::to_string(count), rect(badge.right + 10, badge.top, 120, 20),
+                {Font::Small, {1, 1, 1, 0.7f}});
+    if (show_info_) paint_info(ui, b);
+
+    ui.fill_gradient(rect(b.left, b.bottom - 140, width(b), 140), {0, 0, 0, 0}, {0, 0, 0, 0.82f});
+    float pad = 28, y = b.bottom - 58, h = 40;
+    float x = b.left + pad - 8;
+    auto button = [&](std::string_view key, const wchar_t* glyph, std::function<void()> fn, bool enabled = true, float w = 40) {
+        Rect r = rect(x, y, w, h);
+        if (enabled) widgets::icon_button(ui, make_id(key), r, glyph, std::move(fn));
+        else widgets::glyph(ui, glyph, r, {1, 1, 1, 0.3f});
+        x += w + 6;
+    };
+    bool zappable = count > 1;
+    button("p.chprev", icon::previous, [this] { zap(-1); }, zappable);
+    button("p.play", paused_ ? icon::play : icon::pause, [this] { toggle_pause(); }, loaded_, 48);
+    button("p.chnext", icon::next, [this] { zap(1); }, zappable);
+    paint_volume(ui, x + 6, y, h);
+
+    float rx = b.right - pad + 8;
+    auto rbutton = [&](std::string_view key, const wchar_t* glyph, std::function<void()> fn, bool active = false) {
+        rx -= 46;
+        Rect r = rect(rx, y, 40, h);
+        widgets::icon_button(ui, make_id(key), r, glyph, std::move(fn), active);
+        return r;
+    };
+    rbutton("p.full", host_.is_fullscreen() ? icon::exit_fullscreen : icon::fullscreen, [this] { host_.toggle_fullscreen(); });
+    rbutton("p.info", L"\uE946", [this] { show_info_ = !show_info_; }, show_info_);
+    if (std::any_of(tracks_.begin(), tracks_.end(), [](const mpv::Track& t) { return t.type == "sub"; })) {
+        Rect subs = rbutton("p.subs", icon::subtitles, [this] { menu_ = menu_ == Menu::Subtitles ? Menu::None : Menu::Subtitles; },
+                            menu_ == Menu::Subtitles);
+        if (menu_ == Menu::Subtitles) menu_anchor_ = subs;
+    }
+    if (std::count_if(tracks_.begin(), tracks_.end(), [](const mpv::Track& t) { return t.type == "audio"; }) > 1) {
+        Rect audio = rbutton("p.audio", icon::audio, [this] { menu_ = menu_ == Menu::Audio ? Menu::None : Menu::Audio; }, menu_ == Menu::Audio);
+        if (menu_ == Menu::Audio) menu_anchor_ = audio;
     }
 }
 
@@ -840,6 +1039,14 @@ void PlayerScreen::paint_error(Ui& ui, const Rect& b) {
     Rect r = rect((b.left + b.right - w) / 2, (b.top + b.bottom - h) / 2, w, h);
     ui.fill_round(r, 14, {0.13f, 0.13f, 0.15f, 0.96f});
     ui.text(error_, rect(r.left + 24, r.top + 20, w - 48, 64), {Font::Body, {1, 1, 1, 1}, Align::Center, true, false, 3});
+    if (live_) {
+        float mid = (r.left + r.right) / 2;
+        widgets::button(ui, make_id("p.err.retry"), rect(mid - 125, r.bottom - 58, 120, 38), "Try Again", widgets::Style::Primary,
+                        [this] { retry_live(); }, true, icon::refresh);
+        widgets::button(ui, make_id("p.err.close"), rect(mid + 5, r.bottom - 58, 120, 38), "Close", widgets::Style::Secondary,
+                        [this] { close(); });
+        return;
+    }
     widgets::button(ui, make_id("p.err.close"), rect((r.left + r.right) / 2 - 50, r.bottom - 58, 100, 38), "Close",
                     widgets::Style::Secondary, [this] { close(); });
 }

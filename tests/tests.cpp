@@ -1,5 +1,6 @@
 #include "core/client.h"
 #include "core/models.h"
+#include "core/plugins.h"
 #include "core/sse.h"
 #include "core/update.h"
 #include "core/url.h"
@@ -104,6 +105,56 @@ static void test_update() {
     CHECK(!parse_release(R"({"tag_name": "v0.2.0", "assets": [{"name": "a.zip", "browser_download_url": "u"}]})"));
 }
 
+static void test_live() {
+    using namespace ciniva::plugins;
+    auto v = parse_view(json::parse(R"({"title": "TV", "blocks": [
+        {"type": "list", "items": [
+            {"id": "a", "title": "One", "image": "https://logos/1.png", "play": {"stream": "one"}},
+            {"id": "b", "title": "Guide", "link": {"page": "guide"}},
+            {"id": "c", "title": "Two", "play": {"stream": "two.hd", "title": "Two HD"}, "link": {"page": "x"},
+             "actions": [{"label": "Watch", "play": {"stream": "two.hd"}}, {"label": "Fav", "call": {"path": "fav"}}]},
+            {"id": "d", "title": "Bad", "play": {"title": "no stream"}},
+            {"id": "e", "title": "Bad2", "play": "three"}
+        ]},
+        {"type": "actions", "items": [{"label": "Live", "play": {"stream": "news", "title": "News"}}]}
+    ]})"));
+    CHECK(v.blocks.size() == 2);
+    const auto& items = v.blocks[0].items;
+    CHECK(items.size() == 5);
+    CHECK(items[0].play && items[0].play->stream == "one" && items[0].play->title.empty());
+    CHECK(!items[1].play && items[1].link);
+    CHECK(items[2].play && items[2].play->title == "Two HD" && items[2].link && items[2].link->page == "x");
+    CHECK(items[2].actions.size() == 2 && items[2].actions[0].play && items[2].actions[0].play->stream == "two.hd");
+    CHECK(!items[2].actions[1].play && items[2].actions[1].call);
+    CHECK(!items[3].play && !items[4].play);
+    CHECK(v.blocks[1].actions.size() == 1 && v.blocks[1].actions[0].play && v.blocks[1].actions[0].play->title == "News");
+
+    auto ch = channels(v.blocks[0]);
+    CHECK(ch.size() == 2);
+    CHECK(ch[0].stream == "one" && ch[0].title == "One" && ch[0].image == "https://logos/1.png");
+    CHECK(ch[1].stream == "two.hd" && ch[1].title == "Two HD" && ch[1].image.empty());
+
+    CHECK(step_channel(0, -1, 3) == 2);
+    CHECK(step_channel(2, 1, 3) == 0);
+    CHECK(step_channel(1, 1, 3) == 2);
+    CHECK(step_channel(0, 1, 1) == 0);
+    CHECK(step_channel(0, 1, 0) == 0);
+
+    auto body = live_request();
+    CHECK(body["video_copy"] == "h264,hevc,av1,vp9");
+    CHECK(body["audio_copy"] == "aac,ac3,eac3");
+    CHECK(body["max_height"] == 2160 && body["audio_channels"] == 2);
+
+    auto l = parse_live(json::parse(R"({"session": "s1", "playlist": "/api/live/s1/index.m3u8", "plan": {}, "live": true,
+        "title": "One", "image": null})"));
+    CHECK(l && l->session == "s1" && l->playlist == "/api/live/s1/index.m3u8" && l->title == "One" && l->image.empty());
+    CHECK(!parse_live(json::parse(R"({"error": "channel is offline"})")));
+    CHECK(!parse_live(json::array()));
+
+    ciniva::Client c("http://srv1.local:8484", "a b");
+    CHECK(c.live_url("/api/live/s1/index.m3u8") == "http://srv1.local:8484/api/live/s1/index.m3u8?token=a%20b");
+}
+
 int main() {
     test_normalize();
     test_encode();
@@ -111,6 +162,7 @@ int main() {
     test_models();
     test_client_urls();
     test_update();
+    test_live();
     if (failures) std::fprintf(stderr, "%d failure(s)\n", failures);
     else std::puts("all tests passed");
     return failures ? 1 : 0;

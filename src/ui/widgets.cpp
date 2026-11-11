@@ -9,6 +9,13 @@ void glyph(Ui& ui, const wchar_t* g, const Rect& r, Color c, Font font) {
     ui.text(std::wstring_view(g), r, {font, c, Align::Center});
 }
 
+void channel_logo(Ui& ui, const std::optional<std::string>& url, const Rect& r, Color bg) {
+    ui.fill_round(r, 6, bg);
+    Rect inner = inset(r, 4, 4);
+    if (!ui.logo(url, inner, static_cast<int>(width(inner) * ui.renderer().scale() * 2)))
+        glyph(ui, icon::tv, r, theme::secondary, height(r) < 40 ? Font::IconSmall : Font::Icon);
+}
+
 float button_width(Ui& ui, std::string_view label, bool has_glyph) {
     return ui.measure(label, Font::BodyBold).width + 36 + (has_glyph ? 24 : 0);
 }

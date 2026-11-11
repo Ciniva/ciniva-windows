@@ -81,8 +81,14 @@ private:
     void cycle_subtitles();
     double seek_step(bool shift, bool ctrl) const;
     void load_season(int season);
+    void start_live();
+    void live_dropped();
+    void retry_live();
+    void zap(int step);
 
     void paint_controls(ui::Ui& ui, const ui::Rect& b);
+    void paint_live_controls(ui::Ui& ui, const ui::Rect& b);
+    float paint_volume(ui::Ui& ui, float x, float y, float h);
     void paint_scrubber(ui::Ui& ui, const ui::Rect& bar_area);
     void paint_menu(ui::Ui& ui, const ui::Rect& b);
     void paint_up_next(ui::Ui& ui, const ui::Rect& b);
@@ -127,6 +133,13 @@ private:
     double next_countdown_ = 0;
     double volume_ = 100;
     double volume_before_mute_ = 100;
+    std::optional<LiveRequest> live_;
+    std::string live_title_;
+    std::string live_image_;
+    int live_attempt_ = 0;
+    double live_retry_at_ = 0;
+    double live_stall_since_ = 0;
+    double paused_at_ = 0;
 
     double controls_until_ = 0;
     bool show_info_ = false;

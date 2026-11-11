@@ -70,6 +70,12 @@ std::string Client::download_stream_url(const std::string& id) const {
     return api_url("/downloads/" + id + "/stream", {}, true);
 }
 
+std::string Client::live_url(const std::string& playlist) const {
+    std::string_view p = playlist;
+    if (p.rfind("/api/", 0) == 0) p.remove_prefix(4);
+    return api_url(p, {}, true);
+}
+
 std::optional<std::string> Client::image_url(const std::optional<std::string>& path, const char* size) const {
     if (!path || path->empty()) return std::nullopt;
     const std::string& p = *path;
@@ -199,6 +205,11 @@ HttpRequest Client::events_request() const {
     if (!token_.empty()) req.headers.push_back({"Authorization", "Bearer " + token_});
     req.timeout_ms = 60000;
     return req;
+}
+
+Result<json> Client::start_live(const std::string& plugin, const std::string& stream) const {
+    json b = ciniva::plugins::live_request();
+    return send("POST", "/plugins/" + plugin + "/live/" + stream, {}, &b);
 }
 
 }

@@ -58,6 +58,7 @@ void chip(Ui& ui, const Rect& r, std::string_view label, Color bg = {1, 1, 1, 0.
 float chip_width(Ui& ui, std::string_view label);
 void toasts(Ui& ui, const Rect& bounds, const std::vector<Toast>& list);
 void glyph(Ui& ui, const wchar_t* g, const Rect& r, Color c, Font font = Font::Icon);
+void channel_logo(Ui& ui, const std::optional<std::string>& url, const Rect& r, Color bg = {1, 1, 1, 0.08f});
 
 }
 

@@ -158,12 +158,24 @@ protected:
 
     void run(const plugins::Action& a) {
         if (busy_ || !confirm(nav_.hwnd, a.confirm)) return;
+        if (a.play) {
+            play_live(std::vector<plugins::Channel>{plugins::Channel{a.play->stream, a.play->title, ""}}, 0);
+            return;
+        }
         if (a.navigate && !a.call) {
             nav_.push(make_plugin_page(nav_, plugin_, *a.navigate));
             return;
         }
         if (!a.call) return;
         call(*a.call, nullptr);
+    }
+
+    void play_live(std::vector<plugins::Channel> list, size_t index) {
+        if (index >= list.size()) return;
+        PlaybackRequest req;
+        req.title = list[index].title;
+        req.live = LiveRequest{plugin_, std::move(list), index};
+        model().play(req);
     }
 
     void call(const plugins::Call& c, const json* body) {
@@ -394,29 +406,42 @@ protected:
             ui.text(b.empty.empty() ? "Nothing here." : b.empty, rect(x, y, w, 22), {Font::Body, theme::secondary});
             return 30;
         }
+        auto channels = plugins::channels(b);
+        size_t channel = 0;
         for (size_t i = 0; i < b.items.size(); ++i) {
             const auto& it = b.items[i];
-            bool has_image = !it.image.empty();
-            float h = has_image ? 92.0f : 64.0f;
+            bool live = it.play.has_value();
+            bool has_image = !it.image.empty() && !live;
+            float head = live ? 76.0f : has_image ? 92.0f : 64.0f;
+            float h = head;
             if (it.progress) h += 10;
             if (!it.actions.empty()) h += 40;
             Rect row = rect(x, y, w, h);
             std::function<void()> open;
-            if (it.link) {
+            if (live) {
+                size_t index = channel++;
+                open = [this, channels, index] { play_live(channels, index); };
+            } else if (it.link) {
                 plugins::Nav link = *it.link;
                 open = [this, link] { nav_.push(make_plugin_page(nav_, plugin_, link)); };
             }
-            auto st = ui.region(make_id(key + ".row", static_cast<long long>(i)), row, open, it.link.has_value());
-            ui.fill_round(row, 10, st.hover && it.link ? theme::surface_hover : theme::surface);
+            bool clickable = static_cast<bool>(open);
+            auto st = ui.region(make_id(key + ".row", static_cast<long long>(i)), row, open, clickable);
+            ui.fill_round(row, 10, st.hover && clickable ? theme::surface_hover : theme::surface);
             if (st.focused) ui.focus_ring(row, 10);
             float tx = x + 16;
-            if (has_image) {
+            if (live) {
+                auto* c = client();
+                Rect logo = rect(x + 12, y + 12, 72, 52);
+                widgets::channel_logo(ui, c ? c->image_url(it.image, "w185") : std::nullopt, logo);
+                tx = logo.right + 14;
+            } else if (has_image) {
                 auto* c = client();
                 Rect img = rect(x + 12, y + 12, 48, 68);
                 ui.image(c ? c->image_url(it.image, "w185") : std::nullopt, img, 6, static_cast<int>(48 * ui.renderer().scale()));
                 tx = img.right + 14;
             }
-            float bx = x + w - 14 - (it.link ? 24.0f : 0.0f);
+            float bx = x + w - 14 - (clickable ? 24.0f : 0.0f);
             for (auto bd = it.badges.rbegin(); bd != it.badges.rend(); ++bd) {
                 float bw = widgets::chip_width(ui, bd->text);
                 bx -= bw;
@@ -424,11 +449,13 @@ protected:
                 widgets::chip(ui, rect(bx, y + 14, bw, 22), bd->text, with_alpha(c, 0.16f), c);
                 bx -= 6;
             }
-            if (it.link) widgets::glyph(ui, icon::chevron_right, rect(x + w - 30, y, 20, has_image ? 92.0f : 64.0f), theme::tertiary, Font::IconSmall);
+            if (clickable)
+                widgets::glyph(ui, live ? icon::play : icon::chevron_right, rect(x + w - 30, y, 20, head), live ? theme::accent : theme::tertiary,
+                               Font::IconSmall);
             float tw = bx - tx - 8;
             ui.text(it.title, rect(tx, y + 12, tw, 22), {Font::BodyBold});
             if (!it.subtitle.empty()) ui.text(it.subtitle, rect(tx, y + 34, tw, 34), {Font::Small, theme::secondary, Align::Leading, true, false, 2});
-            float cy = y + (has_image ? 84.0f : 58.0f);
+            float cy = y + (live ? 70.0f : has_image ? 84.0f : 58.0f);
             if (it.progress) {
                 widgets::progress_bar(ui, rect(tx, cy, x + w - 16 - tx, 5), *it.progress);
                 cy += 12;

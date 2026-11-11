@@ -45,6 +45,7 @@ public:
     std::string subtitle_url(int file_id, int index) const;
     std::string trickplay_sheet_url(int file_id, int sheet) const;
     std::string download_stream_url(const std::string& id) const;
+    std::string live_url(const std::string& playlist) const;
     std::optional<std::string> image_url(const std::optional<std::string>& path, const char* size = "w342") const;
 
     Result<json> send(const char* method, std::string_view path, const Query& query = {}, const json* body = nullptr) const;
@@ -95,6 +96,7 @@ public:
     Result<json> plugin_action(const std::string& plugin, const std::string& action, const json& context) const;
     Result<json> plugin_settings(const std::string& plugin) const;
     Result<json> save_plugin_settings(const std::string& plugin, const json& values) const;
+    Result<json> start_live(const std::string& plugin, const std::string& stream) const;
 
     HttpRequest events_request() const;
 

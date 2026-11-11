@@ -34,6 +34,8 @@ Library: arrow keys and Tab move between items, Enter opens, Esc/Backspace/mouse
 
 Player: Space play/pause, ←/→ seek (Shift and Ctrl for the longer steps set in Settings), ↑/↓ volume, M mute, F, F11 or double-click fullscreen, S cycle subtitles, Shift+N / Shift+P next and previous episode, E episodes, I info, Shift+I mpv statistics, Esc back.
 
+Live TV: plugins that offer channels (`play` items) open the live player. ↑/↓ or PageUp/PageDown switch channels, Space play/pause, +/− or the mouse wheel volume, M mute, F fullscreen, Esc back. A dropped stream restarts on its own a few times before showing Try Again.
+
 Startup timings go to `%LOCALAPPDATA%\Ciniva\ciniva.log`. Set `CINIVA_DEBUG=1` for a verbose `mpv.log` in the same folder.
 
 ## HDR

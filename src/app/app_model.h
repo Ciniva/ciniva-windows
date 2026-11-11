@@ -23,6 +23,12 @@ struct Toast {
     double expires = 0;
 };
 
+struct LiveRequest {
+    std::string plugin;
+    std::vector<ciniva::plugins::Channel> channels;
+    size_t index = 0;
+};
+
 struct PlaybackRequest {
     std::optional<int> file_id;
     std::string title;
@@ -31,6 +37,7 @@ struct PlaybackRequest {
     std::optional<double> start_at;
     std::optional<std::string> url;
     std::optional<std::string> download_id;
+    std::optional<LiveRequest> live;
 };
 
 class AppModel {
