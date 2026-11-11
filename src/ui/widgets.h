@@ -29,6 +29,7 @@ constexpr const wchar_t* next = L"\uE893";
 constexpr const wchar_t* previous = L"\uE892";
 constexpr const wchar_t* download = L"\uE896";
 constexpr const wchar_t* chevron_down = L"\uE70D";
+constexpr const wchar_t* chevron_up = L"\uE70E";
 constexpr const wchar_t* chevron_right = L"\uE76C";
 constexpr const wchar_t* chevron_left = L"\uE76B";
 constexpr const wchar_t* more = L"\uE712";

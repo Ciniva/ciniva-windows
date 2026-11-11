@@ -564,14 +564,14 @@ bool PlayerScreen::on_key(WPARAM key) {
         switch (key) {
         case VK_UP:
         case VK_PRIOR:
-        case VK_MEDIA_PREV_TRACK:
-            zap(-1);
+        case VK_MEDIA_NEXT_TRACK:
+            zap(1);
             bump();
             return true;
         case VK_DOWN:
         case VK_NEXT:
-        case VK_MEDIA_NEXT_TRACK:
-            zap(1);
+        case VK_MEDIA_PREV_TRACK:
+            zap(-1);
             bump();
             return true;
         case VK_OEM_PLUS:
@@ -848,9 +848,9 @@ void PlayerScreen::paint_live_controls(Ui& ui, const Rect& b) {
         x += w + 6;
     };
     bool zappable = count > 1;
-    button("p.chprev", icon::previous, [this] { zap(-1); }, zappable);
+    button("p.chdown", icon::chevron_down, [this] { zap(-1); }, zappable);
     button("p.play", paused_ ? icon::play : icon::pause, [this] { toggle_pause(); }, loaded_, 48);
-    button("p.chnext", icon::next, [this] { zap(1); }, zappable);
+    button("p.chup", icon::chevron_up, [this] { zap(1); }, zappable);
     paint_volume(ui, x + 6, y, h);
 
     float rx = b.right - pad + 8;
